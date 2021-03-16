@@ -1,0 +1,311 @@
+---
+title: "Lesson 6 R Activity"
+author: "Rick Davila"
+date: "5/4/2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Lesson 6 - Install packages
+#### Install necessary packages using library()
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(car) # Needed for alternative scatterplot matrix to default
+library(scatterplot3d) # Needed for 3D scatterplot
+library(matlib) # Needed for Invers() function
+library(MASS) # Needed for ginv() function
+library(standardize) # Needed for unit normal scaling in Example 3.14
+
+rm(list = ls())
+
+```
+
+#### Read data file (data-ex-3-1.xlsx)
+
+```{r}
+
+ex3_1 <- read.xlsx("data-ex-3-1.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3,4), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+```
+
+#### Assign labels to data columns using names() and attach() commands
+
+```{r}
+
+names(ex3_1) <- c("Delivery_Time", "Num_Cases", "Distance")
+attach(ex3_1)
+
+```
+
+#### Output data to make sure it reads properly
+
+```{r results="asis"}
+
+out <- as.data.frame(c(ex3_1))
+colnames(out) <- c("Delivery Time, $y$ (min)", "Number of Cases, $x_i$","Distance, $x_2$ (ft)")
+tab <- (xtable(out, digits=c(0,2,0,0)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(ex3_1)
+dim(ex3_1)
+
+```
+
+## Lesson 6 - Example 4.1 (p.135-136)
+#### Calculate residuals and compare to Column (1) in Table 4.1, p. 137. 
+
+```{r}
+
+# Define X matrix of regressor observations
+X <- cbind(matrix(1,length(Distance),1),as.matrix(Num_Cases),as.matrix(Distance))
+y <- as.matrix(Delivery_Time)
+
+# X'X matrix
+xTx <- t(X) %*% X
+
+# Calculate least-squares estimator of beta_coeffs
+beta_hat <- ginv(xTx) %*% t(X) %*% y
+beta_0 <- beta_hat[1,1]
+beta_1 <- beta_hat[2,1]
+beta_2 <- beta_hat[3,1]
+
+```
+
+The least squares fit is $$\hat{y} = (`r beta_0`) + (`r beta_1`)x_1 + (`r beta_2`)x_2 $$
+
+```{r results="asis"}
+
+# least squares fit equation
+y_hat <- beta_0 + beta_1*Num_Cases + beta_2*Distance
+e_i=data.frame(Delivery_Time - y_hat) # e_i are the residuals
+names(e_i) <- c("Res")
+attach(e_i)
+
+out <- as.data.frame(c(e_i))
+colnames(out) <- c("Residuals")
+tab <- (xtable(out, digits=c(0,6)))
+print(tab, type="html")
+
+```
+
+#### Calculate standardized residuals using Equation 4.2;compare to Column (2) in Table 4.1, p. 137. 
+
+```{r results="asis"}
+
+n <- length(Res)       # number of residuals
+ei_bar <- sum(Res)/n   # avg of residuals
+k <- 2                 # number of beta regressor coefficients
+p <- k + 1             # number of parameters
+
+MS_Res <- sum((Res - ei_bar)^2)/(n-p)
+
+# standardized residuals (eqn 4.2)
+d_i <- data.frame(Res/(sqrt(MS_Res)))
+names(d_i) <- c("Std_Res")
+attach(d_i)
+
+out <- as.data.frame(c(d_i))
+colnames(out) <- c("Standardized Residuals")
+tab <- (xtable(out, digits=c(0,6)))
+print(tab, type="html")
+
+```
+
+#### Calculate studentized residuals using Equation 4.8; compare to Column (3) in Table 4.1, p. 137. 
+
+```{r results="asis"}
+
+# calculate the hat matrix
+H <- X %*% ginv(xTx) %*% t(X) 
+
+# to get the diagonal elements of H, use diag(H) function
+
+# studentized residuals (eqn 4.8)
+r_i <- data.frame(Res/(sqrt(MS_Res*(1-diag(H)))))
+names(r_i) <- c("Stud_Res")
+attach(r_i)
+
+out <- as.data.frame(c(r_i))
+colnames(out) <- c("Studentized Residuals")
+tab <- (xtable(out, digits=c(0,6)))
+print(tab, type="html")
+
+```
+
+#### Calculate PRESS residuals using Equation 4.11; compare to Column (5) in Table 4.1, p. 137. 
+
+```{r results="asis"}
+
+# PRESS residuals (eqn 4.11)
+e_pip <- data.frame(Res/(1-diag(H)))
+names(e_pip) <- c("PRESS_Res")
+attach(e_pip)
+
+out <- as.data.frame(c(e_pip))
+colnames(out) <- c("PRESS residuals")
+tab <- (xtable(out, digits=c(0,6)))
+print(tab, type="html")
+
+```
+
+#### Calculate R-Student residuals using Equations 4.12 and 4.13; compare to Column (6) in Table 4.1, p. 137. Looks good.
+
+```{r results="asis"}
+
+# using eqn 4.12
+Si_sqr = ((n-p)*MS_Res-(Res^2/(1-diag(H))))/(n-p-1)
+
+# R-student (eqn 4.13)
+t_i <- data.frame(Res/(sqrt(Si_sqr*(1-diag(H)))))
+names(t_i) <- c("R_Stud")
+attach(t_i)
+
+out <- as.data.frame(c(t_i))
+colnames(out) <- c("R-Student Residuals")
+tab <- (xtable(out, digits=c(0,6)))
+print(tab, type="html")
+
+```
+
+#### Reproduce Table 4.1 on p. 137 - Consolidate above vectors into a dataframe using data.frame(). Give column names using colnames() and c().
+
+```{r results="asis"}
+
+out <- as.data.frame(c(e_i, d_i, r_i, e_pip, t_i))
+colnames(out) <- c(" Residuals, $e_i$ "," Standardized Residuals, $d_i$ "," Studentized Residuals, $r_i$ "," PRESS Residuals, $e_{(i)}$ "," R-student, $t_i$ ")
+tab <- (xtable(out, digits=c(0, 6, 6, 6, 6, 6)))
+print(tab, type="html")
+
+```
+
+#### Note: R has functions called rstandard() and rstudent(). Note that rstandard() outputs what the textbook calls Studentized Residuals and rstudent() outputs what the textbook calls R-Student residuals or 'externally studentized' residuals. Don't get confused.  Compare your manually-computer vectors above with the rstandard() and rstudent() functions. The rounded difference should be a vector of zeros. 
+
+```{r results="asis"}
+
+# test rstandard() function
+test.lm <- lm(Delivery_Time~ Num_Cases + Distance)
+test.rstandard <- data.frame(rstandard(test.lm))
+test.rstudent <- data.frame(rstudent(test.lm))
+
+out <- as.data.frame(c(e_i, d_i, r_i, e_pip, t_i, test.rstandard, test.rstudent))
+colnames(out) <- c(" Residuals, $e_i$ "," Standardized Residuals, $d_i$ "," Studentized Residuals, $r_i$ "," PRESS Residuals, $e_{(i)}$ "," R-student, $t_i$ ", " rstandard() ", " rstudent() ")
+tab <- (xtable(out, digits=c(0, 6, 6, 6, 6, 6, 6, 6)))
+print(tab, type="html")
+
+```
+
+## Lesson 6 - Example 4.2 (p. 139-140)
+#### Create plot of residuals against fitted y_hat values for each type of residual calculated in Example 4.1 using plot()
+
+```{r}
+
+# before plotting, get colors
+cols <- palette()
+
+# plot the first curve by calling plot() function
+plot(y_hat, Res, ylab = "Residuals", xlab = "Fitted Value", col=cols[1], pch=1, ylim=range(Res, Std_Res, Stud_Res, PRESS_Res))
+points(y_hat, Std_Res, col=cols[2], pch=2)
+points(y_hat, Stud_Res, col=cols[3], pch=3)
+points(y_hat, PRESS_Res, col=cols[4], pch=4)
+points(y_hat, R_Stud, col=cols[5], pch=5)
+
+abline(h=0, col="gray")
+
+legend("top",legend=c("Residuals","Standardized","Studentized","PRESS","R-Student"), col=c(cols[1],cols[2],cols[3],cols[4],cols[5]), pch=c(1, 2, 3, 4, 5), ncol = 3)
+
+```
+
+#### Create normal probability plot of residuals using qqnorm()
+
+```{r}
+
+# the normal probability plot is a graphical technique for assessing whether or not a data set is approximately normally distributed.  Departures from a straight line fit indicates depature from normality
+
+qqnorm(Res,main="Normal QQ plot of Residuals (e_i)")
+qqline(Res)
+
+qqnorm(Std_Res,main="Normal QQ plot of Standardized Residuals")
+qqline(Std_Res)
+
+qqnorm(Stud_Res,main="Normal QQ plot of Studentized Residuals")
+qqline(Stud_Res)
+
+qqnorm(PRESS_Res,main="Normal QQ plot of PRESS Residuals")
+qqline(PRESS_Res)
+
+qqnorm(R_Stud,main="Normal QQ plot of R-Student Residuals")
+qqline(R_Stud)
+
+```
+
+## Lesson 6 - Example 4.3 (p. 141)
+#### Create a plot of residuals against the each of the regressors (Use R-Student residuals)
+
+```{r}
+
+# plot number of cases versus R-student residuals
+plot(Num_Cases, R_Stud, ylab = "R-Student Residuals", xlab = "Number of Cases", main = "Residuals vs Number of Cases", pch=16)
+abline(h=0, col="gray")
+
+# plot Distance versus R-student residuals
+plot(Distance, R_Stud, ylab = "R-Student Residuals", xlab = "Distance (ft)", main = "Residuals vs Distance", pch=16)
+abline(h=0, col="gray")
+
+```
+
+## Lesson 6 - Example 4.5 (p. 144)
+#### Create partial regression plots for each of the two regressors. Use rstudent() to calculate residuals.
+
+```{r}
+
+# Delivery_Time, given Distance
+model1 <- lm(Delivery_Time ~ Distance )
+residuals.1 <- model1$residuals
+
+# Num_Cases, given Distance
+model2 <- lm(Num_Cases ~ Distance)
+residuals.2 <- model2$residuals
+
+# Delivery_Time, given x1
+model3 <- lm(Delivery_Time ~ Num_Cases)
+residuals.3 <- model3$residuals
+
+# Distance, given Num_Cases
+model4 <- lm(Distance ~ Num_Cases)
+residuals.4 <- model4$residuals
+
+plot(residuals.2, residuals.1, main='Delivery_Time|Distance ~ Num_Cases|Distance', xlab = "Number of Cases", ylab = "Residuals")
+plot(residuals.4, residuals.3, main='Delivery_Time|Num_Cases ~ Distance|Num_Cases', xlab = "Distance", ylab = "Residuals")
+
+```
+
+## Lesson 6 - Example 4.6 (p.151-152)
+#### Calculate PRESS Statistic and R-Squared_PRESS (by hand)
+
+```{r}
+
+# PRESS statistic using eqn 4.17
+PRESS_statistic <- sum((Res/(1-diag(H)))^2)
+
+# sum of squares total
+SS_T <- t(Delivery_Time)%*%Delivery_Time-(sum(Delivery_Time))^2/length(Delivery_Time)
+
+# R-Squared PRESS using eqn 4.18
+R_Squared_PRESS <- 1 - PRESS_statistic/SS_T
+
+```
+
+The PRESS Statistic is $`r PRESS_statistic`$ and the $R^2$ for Prediction Based on PRESS is $R^2_{prediction}$ = $`r R_Squared_PRESS`$

@@ -1,0 +1,571 @@
+---
+title: "Lesson 5 R Activity"
+author: "Rick Davila"
+date: "5/2/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+## Lesson 4 - Install packages
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(car) # Needed for alternative scatterplot matrix to default
+library(scatterplot3d) # Needed for 3D scatterplot
+library(matlib) # Needed for Invers() function
+library(MASS) # Needed for ginv() function
+library(standardize) # Needed for unit normal scaling in Example 3.14
+
+rm(list = ls())
+
+```
+
+## Lesson 4 - Read data file (data-ex-3-1.xlsx)
+
+```{r}
+
+ex3_1 <- read.xlsx("data-ex-3-1.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3,4), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+```
+
+## Lesson 4 - Assign labels to data columns using names() and attach() commands
+
+```{r}
+
+names(ex3_1) <- c("Delivery_Time", "Num_Cases", "Distance")
+attach(ex3_1)
+
+```
+
+## Lesson 4 - Output data to make sure it reads properly
+
+```{r}
+
+# Output data to make sure it reads properly
+xtable(ex3_1)
+
+```
+
+## Lesson 4 - Output data structure and dimensions
+
+```{r}
+
+# output dataframe structure
+str(ex3_1)
+
+# dim of data 'matrix' 
+dim(ex3_1)
+
+```
+
+## Lesson 4 - Example 3.1 (p. 75-77)
+
+#### Ex 3.1.  Create pairwise scatterplots using pairs() command
+
+```{r}
+
+# pairs() - The pairs function returns a plot matrix, consisting of scatterplots for each variable-combination of a data frame.
+
+pairs(ex3_1)
+
+```
+
+#### Ex 3.1.  Create pairwise scatterplots using the scatterplotMatrix() command from the "car" package
+
+```{r}
+
+# The scatterplotMatrix function provides a convenient interface to the pairs function to produce enhanced scatterplot matrices, including univariate displays on the diagonal and a variety of fitted lines, smoothers, variance functions, and concentration ellipsoids.
+
+scatterplotMatrix(ex3_1, use = c("pairwise.complete.obs"))
+
+```
+
+#### Ex 3.1.  Create 3D scatterplot using scatterplot3d() command from "scatterplot3d" package
+
+```{r}
+
+# Plots a three dimensional (3D) point cloud
+scatterplot3d(Num_Cases, Distance, Delivery_Time)
+
+```
+
+#### Ex 3.1.  Obtain regression estimators using matrix algebra ("by hand")
+#### Define X matrix of regressor observations (don't forget to include column for intercept)
+
+```{r}
+
+X <- cbind(matrix(1,length(Distance),1),as.matrix(Num_Cases),as.matrix(Distance))
+y <- as.matrix(Delivery_Time)
+
+```
+
+#### Ex 3.1.  Display X to make sure it is correct; compare to p. 75)
+
+```{r}
+# display X matrix
+X
+
+```
+
+#### Ex 3.1.  Define the matrix product of X_Transpose and X and display output to make sure it is correct (compare to p. 76)
+
+```{r}
+
+# X'X matrix
+xTx <- t(X) %*% X
+xTx
+
+```
+
+#### Ex 3.1.  Take the inverse of xTx ("x-Transpose time x") using three different approaches: Inverse(), ginv(), and inv() and display output to make sure it is correct (compare to p. 77)
+
+```{r}
+
+print("Inverse(xTx)")
+Inverse(xTx)
+
+print("ginv(xTx)")
+ginv(xTx)
+
+print("inv(xTx)")
+inv(xTx)
+
+```
+
+#### Ex 3.1.  Illustration - the above matrix inverse calculations are possibly bad. How to tell? Take the inverse of the inverse using each approach and see...
+
+```{r}
+
+print("Inverse(Inverse(xTx))")
+Inverse(Inverse(xTx))
+
+print("ginv(ginv(xTx))")
+ginv(ginv(xTx))
+
+print("inv(inv(xTx))")
+inv(inv(xTx))
+
+```
+ 
+ ginv(ginv(xTx)) returns the original matrix
+ 
+
+#### Ex 3.1.  Continuing on... use ginv() for matrix inverse calculations from here on out.  Define / calculate X-transpose * y, where y is the vector of dependent variable observations. Compare to p. 77
+
+```{r}
+
+print("X-transpose * y")
+t(X) %*% y
+
+```
+
+#### Ex 3.1.  Calculate Beta coefficients. Compare to values on p. 77.
+
+```{r}
+
+# The least-squares estimator of beta_coeffs
+
+print("Beta Coefficients")
+beta_hat <- ginv(xTx) %*% t(X) %*% y
+beta_hat
+
+```
+
+So we have ˆy = 2.3412311 + 1.6159072x1 + 0.0143848x2
+
+The equation is 
+$$ \hat{y} = (`r beta_hat[1,1]`) + (`r beta_hat[2,1]`)x_1 + (`r beta_hat[3,1]`)x_2 $$
+#### Ex 3.1.  Obtain regression estimates using lm command
+
+```{r}
+
+model <- lm(Delivery_Time ~ Num_Cases + Distance)
+xtable(model)
+
+# aov table
+xtable(summary(aov(model)))
+
+# R coefficient
+res <- data.frame(model$residuals)
+colnames(res) <- "Residuals"
+out <- as.data.frame(c(sigma(model), summary(model)$r.squared, summary(model)$adj.r.squared))
+names(out) <- ""
+rownames(out) <- c("$$S$$", "$$R^2$$", "$$R^{2}_{adj}$$")
+xtable(out, digits=6)
+
+#xtable(res)
+
+```
+## Lesson 4 - Example 3.2 (p. 81)
+
+#### Calculate SS_Residual (by hand) using the definition of a residual on p.80
+
+$$ SS_{res} = \sum\limits_{i=1}^n \left(y_i - \hat{y_i}\right)^2$$
+
+```{r}
+
+y_hat <- beta_hat[1,1] + beta_hat[2,1]*Num_Cases + beta_hat[3,1]*Distance 
+SS_res1 <- sum((Delivery_Time - y_hat)^2)
+SS_res1
+
+```
+
+$$ SS_{res} = \sum\limits_{i=1}^n \left(y_i - \hat{y_i}\right)^2 = `r SS_res1` $$
+
+#### Ex 3.2. Calculate SS_Residual using matrix algebra formula on p. 81.
+
+```{r}
+
+yprime_y <- t(Delivery_Time) %*% Delivery_Time
+beta_x_y <- t(beta_hat)%*%t(X)%*% Delivery_Time
+SS_res2 <- yprime_y - beta_x_y
+SS_res2
+
+```
+
+The residual sum of squares using using the matrix algebra formula is:
+$$ SS_{res} = \mathbf{y^{\prime}y - \hat{\beta^{\prime}}X^{\prime}y} = `r SS_res2` $$
+
+#### Ex 3.2. Learning point: Different packages use different 'behind the curtain' approaches to calculate the matrix inverse.  For some reason, inv() and Inverse() use rounding that results in over half of the SS_Residual being lost.  Using ginv(), from the MASS package, gives results that match the textbook and the results obtained from the lm() command
+
+```{r}
+
+# The least-squares estimator of beta_coeffs using inv() and Inverse()
+
+print("Beta Coefficients - using inv()")
+beta_hat_inv <- inv(xTx) %*% t(X) %*% y
+
+# yprime_y calculated in Ex 3.1
+beta_x_y_inv <- t(beta_hat_inv)%*%t(X)%*% Delivery_Time
+SS_res_inv <- yprime_y - beta_x_y_inv
+
+print("Beta Coefficients - using Inverse()")
+beta_hat_Inverse = Inverse(xTx) %*% t(X) %*% y
+
+beta_x_y_Inverse <- t(beta_hat_Inverse)%*%t(X)%*% Delivery_Time
+SS_res_Inverse <- yprime_y - beta_x_y_Inverse
+
+```
+The residual sum of squares using using the matrix algebra formula and inv() function is:
+$$ SS_{res} = \mathbf{y^{\prime}y - \hat{\beta^{\prime}}X^{\prime}y} = `r SS_res_inv` $$
+The residual sum of squares using using the matrix algebra formula and Inverse() function is:
+$$ SS_{res} = \mathbf{y^{\prime}y - \hat{\beta^{\prime}}X^{\prime}y} = `r SS_res_Inverse` $$
+
+#### Ex 3.2. Note also the discrepancy between using the definition of a residual and using the matrix algebra in Equation 3.16
+
+```{r}
+
+# Using the inv() function
+y_hat <- beta_hat_inv[1,1] + beta_hat_inv[2,1]*Num_Cases + beta_hat_inv[3,1]*Distance 
+SS_res_inv2 <- sum((Delivery_Time - y_hat)^2)
+
+# Using the inv() function
+y_hat <- beta_hat_Inverse[1,1] + beta_hat_Inverse[2,1]*Num_Cases + beta_hat_Inverse[3,1]*Distance 
+SS_res_Inverse2 <- sum((Delivery_Time - y_hat)^2)
+
+```
+
+The residual sum of squares resulting from using inv()
+$$ SS_{res} = \sum\limits_{i=1}^n \left(y_i - \hat{y_i}\right)^2 = `r SS_res_inv2` $$
+The residual sum of squares resulting from using Inverse()
+$$ SS_{res} = \sum\limits_{i=1}^n \left(y_i - \hat{y_i}\right)^2 = `r SS_res_Inverse2` $$
+
+#### Ex 3.2. Calculate SST and SS_Regression (by hand). Compare to ANOVA table on p. 78. Values match.
+
+```{r}
+
+SS_T <- t(Delivery_Time)%*%Delivery_Time-(sum(Delivery_Time))^2/length(Delivery_Time)
+SS_R <- t(beta_hat)%*%t(X)%*%Delivery_Time-(sum(Delivery_Time))^2/length(Delivery_Time)
+
+```
+$$ SS_{T} = \mathbf{y^{\prime}y}-\frac{\left(\sum\limits_{i=1}^n y_i\right)^2}{n} = `r SS_T` $$
+$$ SS_{R} = \mathbf{\hat{\beta}^{\prime}X^{\prime}y}-\frac{\left(\sum\limits_{i=1}^n y_i\right)^2}{n} = `r SS_R` $$
+The $SS_T$ and $SS_R$ calculated values are consistent with the values reported in the book's ANOVA table ($5784.5$ for $SS_T$ and $5550.8$ for $SS_R$).
+
+#### Ex 3.2. Calculate ANOVA table using anova() and display the output
+
+```{r}
+
+# anova table, model calculated using lm() in Ex 3.1 abov
+anova(model)
+summary(anova(model))
+
+```
+
+## Lesson 4 - Example 3.3 (p. 87)
+
+#### Test for significance of regression using F-test (by hand)
+
+#### Calculate degrees of freedom. Output to make sure it is correct; compare to the ANOVA table on p. 87. The test for significance is a test to determine if there is a linear relationship between the response and any of the regressor variables.
+
+```{r}
+
+# degrees of freedom
+k <- 2                     # number of beta regressor parameters
+n <- length(Delivery_Time) # number of obervations
+
+SS_reg_df <- k
+SS_res_df <- n-k-1
+SS_T_df <- n - 1
+
+```
+
+
+$$ SS_{R}df = `r SS_reg_df` $$
+$$ SS_{res}df = `r SS_res_df` $$
+$$ SS_{T}df = `r SS_T_df`$$
+
+#### Ex 3.3.  Calculate Mean-Square for Regression and Residual
+
+```{r}
+
+# n = length(Delivery_Time); calculated in previous chunk
+
+SS_T <- t(Delivery_Time)%*%Delivery_Time - (sum(Delivery_Time))^2/n
+SS_R <- t(beta_hat) %*% t(X) %*% Delivery_Time - (sum(Delivery_Time))^2/n
+SS_res <- SS_T - SS_R
+
+```
+$$ SS_{R} = `r SS_R` $$
+$$ SS_{res} = `r SS_res` $$
+
+#### Ex 3.3.  Calculate F-test algebraically and F-critical using qf() command
+
+```{r}
+
+# recall, k = 2 (above)
+
+MS_R <- SS_R/k
+MS_res <- SS_res/(n-k-1)
+F_0 <- MS_R/MS_res
+
+# F critical using the qf() command at the 0.01 significance
+siglevel <- 0.01
+
+Fcritical <- qf(1-siglevel, SS_reg_df, SS_res_df)
+
+```
+
+The $F_0$ statistic is $$F_0 = \frac{MS_R}{MS_{res}}=\frac{`r MS_R`}{`r MS_res`}=`r F_0` $$
+
+The $F$ critical value is $$ F_0 = `r Fcritical` $$
+
+## Lesson 4 - Example 3.4 (p. 88-89)
+
+#### Test the significance of the individual regression coefficients (by hand)
+#### Define C matrix for use in computing se(B_j)
+
+```{r}
+
+# xTx matrix calculated in the begining of this lesson R activity
+C_matrix <- ginv(xTx)
+C_matrix
+
+```
+
+#### Ex 3.4. (p. 88-89) Compute the t-test algebraically and t-critical using qt() command. Calculate p-value using pt() command.
+
+```{r}
+
+# n is the number of observations and p is the number of beta parameters
+p <- length(beta_hat)
+sigma_hat_sq = SS_res/(n - p)
+
+# calculate t statistic for regressor parameters beta_1 and beta_2
+t0_beta2 = beta_hat[2,1]/sqrt(sigma_hat_sq * C_matrix[2,2])
+t0_beta3 = beta_hat[3,1]/sqrt(sigma_hat_sq * C_matrix[3,3])
+
+# t-critical and p-value calculations
+# for alpha = 0.05
+alpha = 0.05
+
+tcritical_value = abs(qt(alpha/2, df = SS_res_df))
+p_value_beta2 = 2*pt(-abs(t0_beta2), df = SS_res_df)
+p_value_beta3 = 2*pt(-abs(t0_beta3), df = SS_res_df)
+
+```
+
+The test statistics for $\beta_1$ and $\beta_2$ are $`r t0_beta2`$ and $`r t0_beta3`$, respectively.  The t critical value is $$ t_{0.025,22} = `r tcritical_value` $$ so we conclude that each regressor individually, number of cases and distance, contribute significantly to the model.  The P values are $$P(\beta1) = `r p_value_beta2`$$ and $$P(\beta2) = `r p_value_beta3`$$
+
+## Lesson 4 - Example 3.5 (p. 92-93)
+
+#### Perform partial F-test on the significance of the contribution of Distance to the full model
+#### Ex 3.5. Create full model using lm() command
+
+```{r}
+
+y_bar = sum(Delivery_Time)/length(Delivery_Time)
+model_full <- lm(Delivery_Time ~ Num_Cases + Distance)
+
+beta_0 <- model_full$coefficients[1]
+beta_1 <- model_full$coefficients[2]
+beta_2 <- model_full$coefficients[3]
+
+y_hat <- beta_0 + beta_1*Num_Cases + beta_2*Distance 
+SS_R_mf <- sum((y_hat - y_bar)^2) 
+
+```
+
+#### Ex 3.5. Create reduced model using lm() command
+
+```{r}
+# excludes the Distance parameter
+
+model_reduced <- lm(Delivery_Time ~ Num_Cases)
+beta_0 <- model_reduced$coefficients[1]
+beta_1 <- model_reduced$coefficients[2]
+
+y_hat <- beta_0 + beta_1*Num_Cases
+SS_R_mr <- sum((y_hat - y_bar)^2)
+
+```
+
+#### Ex 3.5. Create F-test algebraically and F-critical using qf() command
+
+```{r}
+
+r <- length(model_full$coefficients) - length(model_reduced$coefficients)
+p <- length(model_full$coefficients)
+n <- length(Delivery_Time)
+
+SS_R_beta2contrib = SS_R_mf - SS_R_mr
+
+F_0 <- (SS_R_beta2contrib/r)/MS_res
+
+alpha = 0.05
+F_critical <- qf(1-alpha,r,n-p)
+
+```
+
+$$F_0=\frac{\beta_2|\beta_1,\beta_0/1}{MS_{Res}}=\frac{`r SS_R_beta2contrib`}{`r MS_res`}=`r F_0`$$
+Since $F_{0.05,1,22} = `r F_critical`$, we conclude that Distance (x2) contributes significantly to the model.
+
+#### Ex 3.5. Faster way with R - Use anova() command
+
+```{r}
+
+# use anova() function on the ful model
+F_0anova <- anova(model_full)$F[2]
+
+#1Jun2020 -- added more info
+model.full <- lm(Delivery_Time ~ Num_Cases + Distance)
+model.reduced <- lm(Delivery_Time ~ Num_Cases)
+
+summary(model.full)
+anova(model.full)
+
+results <- anova(model.reduced, model.full)
+results
+
+```
+The $F_0$ test statistic from running anova on the full model is 
+$$F_0 \gt `r F_0anova`$$
+
+## Lesson 5 - Example 3.8 (p. 98)
+#### Calculate 95% confidence intervals for the regression parameters (by hand)
+
+A $100(1 − \alpha)$ percent confidence interval (CI) for the regression coefficient $β_j, j = 0, 1,…,k,$ as $$\hat{\beta_1}-t_{\alpha/2,n-p}\sqrt{\hat{\sigma}^2C_{jj}} \leq\hat{\beta_j}\leq\hat{\beta_1}+t_{\alpha/2,n-p}\sqrt{\hat{\sigma}^2C_{jj}} $$
+
+```{r}
+
+# get the regression coefficients using the lm command
+# re-running this to ensure we get the correct regression parameters
+model <- lm(Delivery_Time ~ Num_Cases + Distance)
+
+beta_0 <- model$coefficients[1]
+beta_1 <- model$coefficients[2]
+beta_2 <- model$coefficients[3]
+
+leftwingb1CI <- beta_1-tcritical_value*sqrt(sigma_hat_sq*C_matrix[2,2])
+rightwingb1CI <- beta_1+tcritical_value*sqrt(sigma_hat_sq*C_matrix[2,2])
+
+leftwingb2CI <- beta_2-tcritical_value*sqrt(sigma_hat_sq*C_matrix[3,3])
+rightwingb2CI <- beta_2+tcritical_value*sqrt(sigma_hat_sq*C_matrix[3,3])
+
+
+```
+$\underline{\textbf{Ans:}}$ For $\hat{\beta_1}=`r beta_1`$, $C_{1,1}=`r C_matrix[2,2]`$, $\hat{\sigma^2}=`r sigma_hat_sq`$ and $t_{`r alpha/2`,`r n-p`}=`r tcritical_value`$, the $95\%$ CI is:
+$$`r leftwingb1CI` \leq \beta_1=`r beta_1` \leq `r rightwingb1CI`$$
+
+for $\hat{\beta_2}=`r beta_2`$, $C_{2,2}=`r C_matrix[3,3]`$, $\hat{\sigma^2}=`r sigma_hat_sq`$ and $t_{`r alpha/2`,`r n-p`}=`r tcritical_value`$, the $95\%$ CI is:
+$$`r leftwingb2CI` \leq \beta_2=`r beta_2` \leq `r rightwingb2CI`$$
+
+## Lesson 5 - Example 3.9 (p.99)
+#### Calculate confidence interval for mean response about some point $x_0$
+
+```{r}
+
+# enter the x_0 data
+data.x_0 <- c(1,8, 275)
+x_0 <- matrix(data.x_0, nrow = 3, ncol = 1, byrow = TRUE)
+
+# The fitted value at this point x_0 is found from Eq. (3.47)
+data.beta <- c(beta_0, beta_1, beta_2)
+beta_matrix <- matrix(data.beta, nrow = 3, ncol = 1, byrow = TRUE)
+y_hat <- t(x_0) %*% beta_matrix
+
+# The variance of ŷ_0 is estimated by
+var_y_hat <- sigma_hat_sq*t(x_0) %*%  ginv(t(X) %*% X) %*% x_0 
+left_wingCI = y_hat - tcritical_value*sqrt(var_y_hat)
+right_wingCI = y_hat + tcritical_value*sqrt(var_y_hat)
+
+```
+
+$\underline{\textbf{Ans:}}$ A $95\%$ CI on the mean response at   this point $x_0 = `r data.x_0`$ is found using eqn. (3.49) in the e-book.  A $100(1 − \alpha)$ percent confidence interval on the mean response at the point $x_{01}, x_{02},…,x_{0k}$ is
+$$\hat{y_0}-t_{\alpha/2,n-p}\sqrt{\hat{\sigma}^2\mathbf{x^{\prime}_0(X^{\prime}X)^{-1}x_0}}\leq E(y|x_0) \leq \hat{y_0}+t_{\alpha/2,n-p}\sqrt{\hat{\sigma}^2\mathbf{x^{\prime}_0(X^{\prime}X)^{-1}x_0}}$$
+for this case,
+$$`r y_hat`-`r tcritical_value`\sqrt{`r var_y_hat`}\leq E(y|x_0)\leq`r y_hat`+`r tcritical_value`\sqrt{`r var_y_hat`}$$
+finally, $$`r left_wingCI`\leq E(y|x_0) \leq `r right_wingCI`$$
+
+## Lesson 5 - Example 3.12 (p. 104)
+#### Create confidence interval on a new observation. Use the same $x_0$
+
+A point estimate of the future observation $y_0$ at the point $x_{01}, x_{02}, ..., x_0, x_{0k}$ is $$\hat{y_0}=\mathbf{x^{\prime}_0\hat{\beta}}$$
+A $100(1-\alpha)$ percent prediction interval for the future observation is 
+$$\hat{y_0}-t_{\alpha/2,n-p}\sqrt{\hat{\sigma}^2(\mathbf{1+x^{\prime}_0(X^{\prime}X)^{-1}x_0})}\leq y_0 \leq \hat{y_0}+t_{\alpha/2,n-p}\sqrt{\hat{\sigma}^2(\mathbf{1+x^{\prime}_0(X^{\prime}X)^{-1}x_0})}$$
+substituing the values in the equation,
+
+```{r}
+
+sqrt_value <- sigma_hat_sq*(1+ t(x_0) %*%  ginv(t(X) %*% X) %*% x_0)
+left_wingPI = y_hat - tcritical_value*sqrt(sqrt_value)
+right_wingPI = y_hat + tcritical_value*sqrt(sqrt_value)
+
+```
+$\underline{\textbf{Ans:}}$
+
+$$`r y_hat`-`r tcritical_value`\sqrt{`r sqrt_value`}\leq y_0 \leq`r y_hat`+`r tcritical_value`\sqrt{`r sqrt_value`}$$
+finally, $$`r left_wingPI`\leq y_0 \leq `r right_wingPI`$$
+
+## Lesson 5 - Example 3.14 (p.115-116)
+#### Create a model with standardized regression coefficients. Scale using the scale() function
+
+```{r}
+
+# follows the unit normal scalling methodology outlined in section 3.9
+
+# create 2 dim array containing only regressors 
+X <- cbind(as.matrix(Num_Cases),as.matrix(Distance))
+
+# scale regressors using scale function -- essentially eqn 3.55
+Z <- scale(X)
+y <- as.matrix(Delivery_Time)
+
+# scale responses using scale function -- essentially eqn 3.56
+y_star <- scale(y)
+
+# from eqn 3.57
+b_hat = ginv(t(Z) %*% Z) %*% t(Z) %*% y_star
+
+```
+
+$\underline{\textbf{Ans:}}$ The fitted model is $$\hat{y}^0= `r b_hat[1]`z_1+`r b_hat[2]`z_2$$
