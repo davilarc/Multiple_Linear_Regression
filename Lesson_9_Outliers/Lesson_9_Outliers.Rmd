@@ -3,9 +3,9 @@ title: "Lesson 9 Lecture Example"
 author: "Rick Davila"
 date: "5/16/2020"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 ## Lesson 9 - Install packages
