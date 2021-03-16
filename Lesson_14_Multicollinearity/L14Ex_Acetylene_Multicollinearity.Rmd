@@ -1,0 +1,382 @@
+---
+title: "L14Ex_Acetylene_Rick_Davila"
+author: "Rick Davila"
+date: "6/01/2020"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE, results="asis"}
+knitr::opts_chunk$set(echo = TRUE)
+
+library('xlsx') # Needed to read data
+library(readxl)
+library(ridge) # Needed for ridge regression in Example 9.2
+library(pls) # Needed for principal component regression in Example 9.3
+library(MASS) # Needed for ginv() function
+library(car) # Needed for vif() function
+library(xtable)
+
+rm(list = ls())
+
+# load data
+Ex91 <- read.xlsx(
+  "data-ex-9-1.xlsx",
+  sheetIndex = 1, sheetName=NULL, rowIndex=NULL, 
+  startRow=NULL, endRow=NULL, colIndex= c(1,2,3,4,5),
+  as.data.frame=TRUE, header=TRUE, colClasses=NA, 
+  keepFormulas=FALSE, encoding="unknown")
+
+# Give labels to data columns
+names(Ex91) <- c("Obs", 
+                 "conversion",
+                 "temp",
+                 "heptane",
+                 "time")
+attach(Ex91)
+
+# Output data to make sure it reads properly
+out <- as.data.frame(c(Ex91))
+colnames(out) <- c("Obs", 
+                 "conversion",
+                 "temp",
+                 "heptane",
+                 "time")
+tab <- (xtable(out, digits=c(0,0,1,0,1,4)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(Ex91)
+dim(Ex91)
+
+```
+
+## Example 9.1 (p. 290-292) ###
+#### Create scatterplot of Contact Time versus Reactor Temperature
+
+```{r}
+
+plot(temp,time, 
+     xlab = "Reactor Temperature (deg C)",
+     ylab = "Contact Time (seconds)")
+
+```
+
+#### Scale regressor variables using unit normal scaling
+
+```{r}
+
+P <- conversion
+Ts <- (temp - mean(temp))/sd(temp)
+Hs <- (heptane - mean(heptane))/sd(heptane)
+Cs <- (time - mean(time))/sd(time)
+
+```
+
+#### Fit second order model using scaled regressors, to include two-way interaction terms. Compare to Table 9.2 on p. 293
+##### Note: Can do this model the "long way", i.e. lm(y ~ x1 + x2 + x3 + x1x2 + x2x3... etc.) or using polym() function in R.
+##### Model output for the polym() shortcut uses a particular notation. Don't get confused - know what you're looking at.
+##### Model both ways and use each model to decipher the polym() output.
+
+```{r}
+
+# model the "long way"
+TsHs <- Ts*Hs
+TsCs <- Ts*Cs
+HsCs <- Hs*Cs
+Ts_sqrd <- Ts*Ts
+Hs_sqrd <- Hs*Hs
+Cs_sqrd <- Cs*Cs
+
+model.91 <- lm(P ~ Ts + Hs + Cs +
+                 TsHs + TsCs + HsCs +
+                 Ts_sqrd + Hs_sqrd + Cs_sqrd)
+
+summary(model.91)
+anova(model.91)
+
+# model using polym()
+
+model.91b <- lm(P ~ polym(Ts, Hs, Cs, degree = 2, raw=TRUE))   
+summary(model.91b)
+anova(model.91b)
+
+```
+
+#### Reproduce Table 9.3 on p. 295. 
+
+```{r results="asis"}
+
+y <- (conversion - mean(conversion))/sqrt(sum((conversion - mean(conversion))^2))
+x_1 <- (temp - mean(temp))/sqrt(sum((temp - mean(temp))^2))
+x_2 <- (heptane - mean(heptane))/sqrt(sum((heptane - mean(heptane))^2))
+x_3 <- (time - mean(time))/sqrt(sum((time - mean(time))^2))
+
+x_12 <- x_1*x_2
+x_12n <- (x_12 - mean(x_12))/sqrt(sum((x_12 - mean(x_12))^2))
+x_13 <- x_1*x_3
+x_13n <- (x_13 - mean(x_13))/sqrt(sum((x_13 - mean(x_13))^2))
+x_23 <- x_2*x_3
+x_23n <- (x_23 - mean(x_23))/sqrt(sum((x_23 - mean(x_23))^2))
+
+x_11 <- x_1*x_1
+x_11n <- (x_11 - mean(x_11))/sqrt(sum((x_11 - mean(x_11))^2))
+x_22 <- x_2*x_2
+x_22n <- (x_22 - mean(x_22))/sqrt(sum((x_22 - mean(x_22))^2))
+x_33 <- x_3*x_3
+x_33n <- (x_33 - mean(x_33))/sqrt(sum((x_33 - mean(x_33))^2))
+
+# reproduce table 9.3
+table_9pt3 <- data.frame(cbind(Obs,y,x_1,x_2,x_3,
+                               x_12n,x_13n,x_23n,
+                               x_11n,x_22n,x_33n))
+out <- table_9pt3
+colnames(out) <- c("Obs $i$","$y$","$x_1$","$x_2$","$x_3$",
+                   "$x_1x_2$","$x_1x_3$","$x_2x_3$",
+                   "$x_1^2$","$x_2^2$","$x_3^2$")
+tab <- (xtable(out, digits=c(0,0,5,5,5,5,5,5,5,5,5,5)))
+print(tab, type="html")
+
+```
+
+#### Using Table 9.3 data, define an X matrix and perform eigensystem analysis of X'X. Compare to Table 9.10 on p. 316
+
+```{r}
+
+#X <- cbind(matrix(1,length(Distance),1),as.matrix(Num_Cases),as.m#atrix(Distance))
+
+X <- cbind(as.matrix(x_1),as.matrix(x_2),as.matrix(x_3),
+           as.matrix(x_12n),as.matrix(x_13n),as.matrix(x_23n),
+           as.matrix(x_11n),as.matrix(x_22n),as.matrix(x_33n))
+
+xtx <- t(X) %*% X
+
+ev <- eigen(xtx)$vectors
+lambda <- eigen(xtx)$values
+
+# eigenvectors
+as.matrix(ev)
+
+# eigenvalues
+as.matrix(lambda)
+
+```
+
+#### Calculate kappa values and compare to p. 298
+
+```{r}
+
+kappa <- max(lambda)/lambda
+as.matrix(kappa)
+
+```
+
+## Example 9.2 (p.307-308)
+##### Perform ridge regression (by hand) using the standardized data from Table 9.3. Define the parameter k as a constant and vary to reproduce Table 9.8 on p. 308
+##### Note: The textbook leaves off the intercept term. This is because the response and the regressors are both centered and scaled. Due to rounding, the output will give a small B_0 coefficient.
+##### We could have also dropped the vector of ones from X
+
+```{r results="asis"}
+
+# create identity matrix (9x9)
+I_matrix <- diag(9)
+
+# k matrix
+k_matrix <- c(0.000,0.001,0.004,0.008,0.016,0.032,0.064,0.128,0.512)
+
+# create blank matrix for storage (9x9)
+mstore <- matrix(nrow = 9, ncol = length(k_matrix))
+
+for (kval in seq(1:length(k_matrix))) {
+  matrix_in <- xtx + k_matrix[kval]*I_matrix
+  beta_R <- ginv(matrix_in, tol = .Machine$double.eps) %*% t(X) %*%  y 
+  
+  mstore[,kval] <- as.matrix(beta_R[,1])
+}
+
+out <- as.data.frame(mstore)
+colnames(out) <- c("$0.000$","$0.001$","$0.004$",
+                   "$0.008$","$0.016$","$0.032$",
+                   "$0.064$","$0.128$","$0.512$")
+
+rownames(out) <- c("$beta_{R1}$","$beta_{R2}$","$beta_{R3}$",
+                   "$beta_{R12}$","$beta_{R13}$","$beta_{R23}$",
+                   "$beta_{R11}$","$beta_{R22}$","$beta_{R33}$")
+
+tab <- (xtable(out, digits=c(0,4,4,4,4,4,4,4,4,4)))
+print(tab, type="html")
+
+```
+
+
+#### There is also a package to perform ridge regression automatically
+
+```{r}
+
+# example using automated calculation ... for k = 0.032
+linRidgeMod <- linearRidge(y ~ x_1 + x_2 + x_3 + x_12n + x_13n + x_23n + x_11n + x_22n + x_33n,
+                           lambda = 0.032)
+print(summary(linRidgeMod), type="html")
+
+```
+
+
+```{r results="asis"}
+
+# create blank matrix for storage (9x9)
+mstore2 <- matrix(nrow = 9, ncol = length(k_matrix))
+
+# loop through the values
+for (kval in seq(1:length(k_matrix))) {
+  linRidgeMod <- linearRidge(y ~ x_1 + x_2 + x_3 + x_12n + x_13n + x_23n + x_11n + x_22n + x_33n,
+                           lambda = k_matrix[kval])
+
+  beta_R <- linRidgeMod$coef
+  mstore2[,kval] <- as.matrix(beta_R[,1])
+}
+
+out <- as.data.frame(mstore2)
+colnames(out) <- c("$0.000$","$0.001$","$0.004$",
+                   "$0.008$","$0.016$","$0.032$",
+                   "$0.064$","$0.128$","$0.512$")
+
+rownames(out) <- c("$beta_{R1}$","$beta_{R2}$","$beta_{R3}$",
+                   "$beta_{R12}$","$beta_{R13}$","$beta_{R23}$",
+                   "$beta_{R11}$","$beta_{R22}$","$beta_{R33}$")
+
+tab <- (xtable(out, digits=c(0,4,4,4,4,4,4,4,4,4)))
+print(tab, type="html")
+
+```
+
+## Example 9.3 (p.316-319)
+#### Perform Principal Component Regression using the pcr() function. Display $coefficients, $loadings, and $scores. Compare to Table 9.12 on p. 318 and Table 9.10 on p. 3.16
+
+```{r}
+
+pcr.model <- pcr(y ~ x_1 + x_2 + x_3 + x_12n + x_13n + x_23n + x_11n + x_22n + x_33n)
+
+
+pcr.model$coefficients
+pcr.model$loadings
+pcr.model$scores
+
+```
+
+
+#### Perform Principal Component Regression (by hand) using the following steps:
+#### Define matrix of eigenvectors of xTx, where X is defined by standardized variables (Table 9.3)
+
+```{r}
+
+xTx <- t(X) %*% X
+
+```
+
+#### Calculate Z; omit intercept row/column because variables are standardized. Compare to $scores output from pcr().
+
+```{r}
+
+# ev is the eigenvectgor matrix
+
+Z <- X %*% as.matrix(ev)
+Z
+
+```
+
+#### Obtain least squares estimators for alpha
+
+```{r}
+
+alpha_hat <- ginv(t(Z) %*% Z, tol = .Machine$double.eps) %*% t(Z) %*%  y 
+
+as.matrix(alpha_hat)
+
+```
+
+#### Define vector of ones and zeros to determine cutoff of principal components to use
+
+```{r}
+
+b_p <- c(1,1,1,1,1,0,0,0,0)
+
+```
+
+
+#### Define alpha_pc as per p.315 (equation not numbered). Note that this is term-by-term multiplication, not the dot product
+
+```{r}
+
+alpha_pc <- alpha_hat * b_p
+
+```
+
+#### Calculate beta_pc using Equation 9.10. Compare results to Table 9.12 on p. 318.Vary B vector to obtain standardized estimates in columns A, B, C, D, and E
+
+```{r}
+
+beta_pc <- as.matrix(ev) %*% alpha_pc
+as.matrix(beta_pc)
+
+```
+
+#### Calculate beta_pc using Equation 9.10. Compare results to Table 9.12 on p. 318.Vary B vector to obtain standardized estimates in columns A, B, C, D, and E
+#### Column A
+
+```{r}
+
+b_p <- c(1,0,0,0,0,0,0,0,0)
+alpha_pc <- alpha_hat * b_p
+beta_pc <- as.matrix(ev) %*% alpha_pc
+as.matrix(beta_pc)
+
+```
+
+#### Column B
+
+```{r}
+
+b_p <- c(1,1,0,0,0,0,0,0,0)
+alpha_pc <- alpha_hat * b_p
+beta_pc <- as.matrix(ev) %*% alpha_pc
+as.matrix(beta_pc)
+
+```
+
+#### Column C
+
+```{r}
+
+b_p <- c(1,1,1,0,0,0,0,0,0)
+alpha_pc <- alpha_hat * b_p
+beta_pc <- as.matrix(ev) %*% alpha_pc
+as.matrix(beta_pc)
+
+```
+
+#### Column D
+
+```{r}
+
+b_p <- c(1,1,1,1,0,0,0,0,0)
+alpha_pc <- alpha_hat * b_p
+beta_pc <- as.matrix(ev) %*% alpha_pc
+as.matrix(beta_pc)
+
+```
+
+#### Column E
+
+```{r}
+
+b_p <- c(1,1,1,1,1,0,0,0,0)
+alpha_pc <- alpha_hat * b_p
+beta_pc <- as.matrix(ev) %*% alpha_pc
+as.matrix(beta_pc)
+
+```

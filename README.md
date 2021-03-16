@@ -10,3 +10,4 @@ R code for multiple linear regression - example code
 ## Lesson 9 - Outliers
 ## Lesson 12 - Polynomials
 ## Lesson 13 - Indicator Variables
+## Lesson 14 - Multicollinearity
