@@ -1,0 +1,373 @@
+---
+title: "Lesson 3 R Activity"
+author: "Rick Davila"
+date: "4/25/2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+### Install packages
+
+```{r setup, include=TRUE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library("xlsx")
+library(xtable)
+
+rm(list = ls())
+```
+
+### Read in rocket propellant data
+
+Copy and paste the following information to  your completed Lesson 1 R Activity .R file.  Read data from Excel spreadsheet using the read.xlsx() command
+
+```{r, , warning = FALSE}
+# uncomment for laptop 1
+ex2_1 <- read.xlsx("data-ex-2-1.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+```
+
+### Rocket propellant data - table printout
+
+```{r, results="asis"}
+
+xtable(ex2_1)
+
+```
+
+### Data structure and dimensions of data
+
+Output data structure and dimensions using the str() and dim() commands
+
+```{r}
+# output dataframe structure
+str(ex2_1)
+
+# dim of data 'matrix' (i.e., should be 20 rows by 2 columns)
+dim(ex2_1)
+```
+
+### Print out tabel using revised column names
+
+```{r, results="asis"}
+
+names(ex2_1) <- c("Shear_Strength", "Age")
+attach(ex2_1)
+
+#Printout revised table using new column names
+xtable(ex2_1)
+
+```
+
+### Create scatter plot
+
+```{r}
+
+# Create scatterplot using plot()
+plot(Age, Shear_Strength)
+
+```
+
+### Create linear model "by hand"
+
+First, perform intermediary calculations - Syy, Sxx, Sxy, x_bar, y_bar, num
+
+```{r}
+
+# num = length(Age)
+num = length(Age)
+
+Syy = sum(Shear_Strength^2) - (sum(Shear_Strength))^2/num
+print(sprintf("Syy = %f",Syy))
+
+# From Eq. (2.9) in the e-book
+Sxx = sum(Age^2) - (sum(Age))^2/num
+print(sprintf("Sxx = %f",Sxx))
+
+# From Eq. (2.10) in the e-book
+Sxy=sum(Age*Shear_Strength)-sum(Age)*sum(Shear_Strength)/num
+print(sprintf("Sxy = %f",Sxy))
+
+#x_bar and y_bar ...
+x_bar = sum(Age)/num
+y_bar = sum(Shear_Strength)/num
+print(sprintf("x_bar = %f and y_bar = %f",x_bar, y_bar))
+
+```
+
+### Determine estimates for slope and intercept
+
+```{r}
+
+# slope, from Eq. (2.11) in the e-book
+beta_1 = Sxy/Sxx
+print(sprintf("beta_1 = %f",beta_1))
+
+# intercept, from Eq. (2.6) in the e-book
+beta_0 = y_bar - beta_1*x_bar
+print(sprintf("beta_0 = %f",beta_0))
+
+print('The Least Squares regression line by hand:')
+
+print(sprintf(" y_hat = %f + (%f)x",beta_0, beta_1))
+
+```
+
+The equation is 
+$$ \hat{y} = (`r round(beta_1,2)`)x + (`r round(beta_0,2)`)$$
+
+### Output the model 'by hand'
+
+```{r, results="asis"}
+# Output 'by hand' model by hand
+y_hat = beta_0 + beta_1*Age
+Results = data.frame(Shear_Strength, y_hat)
+names(Results) <- c("Observed Values","Fitted Values")
+xtable(Results)
+
+```
+
+### Create the linear model using lm() command and display using the summary() command
+
+```{r, results="asis"}
+
+# Create linear model using lm() command and display output using the summary() command
+model=lm(Shear_Strength~Age)
+summary(model)
+
+```
+
+### Example 2.2 (p.21-22)
+
+Obtain ANOVA table elements (by hand) - SST, SS_Regression, SS_Residual
+
+```{r}
+SST = sum((Shear_Strength - y_bar)^2)
+SS_Regression = sum((y_hat - y_bar)^2) 
+SS_Residual = sum((Shear_Strength - y_hat)^2)
+
+print(sprintf("note, Syy = SST = %f and SS_Reg+SS_Res = %f",Syy, SS_Regression+SS_Residual))
+
+# Define degrees of freedom (by hand)
+# num = length(Age) - number of observations
+df_SST = num - 1          # 20 - 1 = 19
+df_SS_Regression = 1              # 1
+df_SS_Residual = num - 2  # 20 - 2 = 18
+
+# Obtain residual degrees of freedom automatically using df.residual()
+dfresidual = df.residual(model)
+print(sprintf("residual degrees of freedom using df.residals = %i",dfresidual))
+
+# Obtain estimated error variance (MS_Residual)
+MS_Residual = SS_Residual/dfresidual
+print(sprintf("sigma^2, estimated error variance = %f",MS_Residual))
+
+#Obtain ANOVA table using aov() command or anova() command and display output
+aov(model)
+anova(model)
+
+```
+
+### Example 2.3 (p.25)
+
+Test significance of slope parameter (by hand) using the qt() and pt() commands for critical value and p-value for the t-distribution
+
+```{r}
+
+se_beta1 = sqrt(MS_Residual/Sxx)
+test_statistic = beta_1/se_beta1
+
+# for alpha = 0.05
+alpha = 0.05
+tcritical_value = abs(qt(alpha/2.0, df = df_SS_Residual))
+p_value = 2*pt(-abs(test_statistic), df = df_SS_Residual)
+print(sprintf("test statistic = %f, critical value = %f and p-value = %e",
+              test_statistic, tcritical_value, p_value))
+
+```
+
+The absolute value of the test statistic is greater than the critical value $$ 12.8 > 2.1 $$ and p value is $$1.64 \times 10^{-10}$$... there's a linear relationship 
+between the shear strength and the age of the propellant
+
+### Example 2.4 (p. 28)
+
+Test for significance of Regression (F-test) at .01 significance level
+
+(1) By hand
+
+```{r}
+
+# By hand:
+# F_o test statistic
+siglevel = 0.01
+
+F_o = (SS_Regression/df_SS_Regression)/(SS_Residual/df_SS_Residual)
+print(sprintf("F_o test statistic = %f", F_o))
+
+Fcritical = qf(1-siglevel, df_SS_Regression, df_SS_Residual)
+print(sprintf("F statistic = %f",Fcritical))
+
+# as a check, from table A.4 in the e-book, F_(0.01,1,18) = 8.29
+p_val = 1 - pf(F_o, df_SS_Regression, df_SS_Residual)
+print(sprintf("F p value = %e",p_val))
+
+```
+
+Since $$F_0 = 165.36 > F_{(0.01,1,18)}$$ We can reject the null hypotheses, there's a relationship between the shear strength and the age of the rocket propellant
+
+
+2) Using aov and anova commands
+
+Using aov and anova functions:
+
+aov model output
+
+```{r}
+
+aov(model)
+
+```
+
+anova model output
+
+```{r}
+
+anova(model)
+
+```
+
+### Example 3 2.5 (p 30)
+
+Construct a $95\%$ confidence interval (CI) for the slope parameter (by hand)
+The $100\left(1-\alpha\right)$ percent confidence interveral (CI) of the slope $\beta_1$ is given by
+$$\hat{\beta}_1 - t_{\alpha/2,n-2}se(\hat{\beta}_1) \le \hat{\beta}_1 \le \hat{\beta}_1 + t_{\alpha/2,n-2}se(\hat{\beta}_1)$$
+We construct a $95%$ CI on $\beta_1$ by using the standard error of $\hat{\beta}_1$ is $se(\hat{\beta}_1) = \sqrt{MS_{Res}/S_{xx}}$ and $t_{0.025,18} = `r tcritical_value`$
+
+```{r}
+# Example 2.5 (p. 30)
+# Construct a 95% confidence interval for the slope parameter (by hand)
+
+se_beta_1 = sqrt(MS_Residual/Sxx)
+CIleft_wing = beta_1 - tcritical_value * se_beta_1
+CIright_wing = beta_1 + tcritical_value * se_beta_1
+
+```
+The $95\%$ CI on the slope is
+$$`r round(beta_1,2)` - (`r round(tcritical_value,2)`)(`r round(se_beta_1,2)`) \le \hat{\beta}_1 \le `r round(beta_1,2)` + (`r round(tcritical_value,2)`)(`r round(se_beta_1,2)`) $$ or
+
+
+$$`r CIleft_wing` \le \hat{\beta}_1 \le`r CIright_wing`$$
+
+check using the Confint command
+
+```{r}
+
+# Check using Confint command
+confint(model, level = 0.95)
+
+```
+
+Construct 95% C.I. for the point x0 = 13.3625
+
+Consider finding a $95\%$ CI on $E(y|x_0)$.  The CI per Eq. (2.43) in the e-book is
+$$\hat{\mu}_{y|x_0} - t_{\alpha/2,n-2}\sqrt{MS_{Res}\left(\frac{1}{n} + \frac{(x_0-\bar{x})^2}{Sxx}\right)} \le E(y|x_0) \le \hat{\mu}_{y|x_0} + t_{\alpha/2,n-2}\sqrt{MS_{Res}\left(\frac{1}{n} + \frac{(x_0-\bar{x})^2}{Sxx}\right)}$$
+for the Rocket Propellant data, we have
+$$\hat{\mu}_{y|x_0} - (`r round(tcritical_value,2)`)\sqrt{`r round(MS_Residual,2)`\left(\frac{1}{`r num`} + \frac{(x_0-`r round(x_bar,2)`)^2}{`r round(Sxx,2)`}\right)} \le E(y|x_0) \le \hat{\mu}_{y|x_0} + (`r round(tcritical_value,2)`)\sqrt{`r round(MS_Residual,2)`\left(\frac{1}{`r num`} + \frac{(x_0-`r round(x_bar,2)`)^2}{`r round(Sxx,2)`}\right)}$$
+
+For this case, $\hat{\mu}_{y|x_0=13.3625}$ is
+
+```{r}
+
+x0 = 13.3625
+mu_hat_x0 = beta_1 * x0 + beta_0
+mu_hat_x0
+
+```
+and the CI at $\hat{\mu}_{y|x_0=13.3625} = `r mu_hat_x0`$ is
+
+```{r}
+
+Sqrt_quantity = sqrt(MS_Residual*(1/num + (x0 - x_bar)^2/Sxx))
+CIx0_left_wing = mu_hat_x0 - tcritical_value * Sqrt_quantity
+CIx0_right_wing = mu_hat_x0 + tcritical_value * Sqrt_quantity
+CIx0_left_wing
+CIx0_right_wing
+
+```
+or
+$$`r CIx0_left_wing` \le E(y|x_0=13.3625) \le `r CIx0_right_wing`$$
+
+### Example 2.7 (p. 34-35)
+Construct a $95\%$ prediction interval for $x_0 = 10 \text{ weeks}$
+
+The $100(1 - \alpha)$ percent prediction interval on a future observation at $x_0$ is
+$$\hat{y_0} - t_{\alpha/2,n-2}\sqrt{MS_{Res}\left(1+ \frac{1}{n} + \frac{(x_0-\bar{x})^2}{Sxx}\right)} \le y_o \le \hat{y_0} + t_{\alpha/2,n-2}\sqrt{MS_{Res}\left(1 + \frac{1}{n} + \frac{(x_0-\bar{x})^2}{Sxx}\right)}$$
+for $x_0 = 10 \text{ weeks}$, $\hat{y_0}$ is
+```{r}
+
+x0 = 10
+y_hat = beta_1 * x0 + beta_0
+y_hat
+
+```
+
+$\hat{y_0} = `r y_hat`$
+
+so, the interval becomes
+
+$$`r round(y_hat,2)` - (`r round(tcritical_value,2)`)\sqrt{`r round(MS_Residual,2)`\left(1+ \frac{1}{`r num`} + \frac{(`r x0`-`r round(x_bar,2)`)^2}{`r round(Sxx,2)`}\right)} \le y_0 \le `r round(y_hat,2)` + (`r round(tcritical_value,2)`)\sqrt{`r round(MS_Residual,2)`\left(1 + \frac{1}{`r num`} + \frac{(`r x0`-`r round(x_bar,2)`)^2}{`r round(Sxx,2)`}\right)}$$
+which simplies to
+```{r}
+
+x0 = 10
+Sqrt_quantity = sqrt(MS_Residual*(1 + 1/num + (x0 - x_bar)^2/Sxx))
+PI_left_wing = y_hat - tcritical_value * Sqrt_quantity
+PI_right_wing = y_hat + tcritical_value * Sqrt_quantity
+PI_left_wing
+PI_right_wing
+
+```
+
+$$`r PI_left_wing` \le y_0 \le `r PI_right_wing`$$
+
+Superimpose a $95\%$ prediction and confidence interval plots onto the scatterplot of data using predict(), plot(), lines() and order() commands.
+
+```{r}
+
+# Obtain prediction interval lines automatically using predict()
+# sorting data frame by Age ... recall from Lesson 1, attach(ex2_1) dataset
+
+sorted_data <- ex2_1[order(Age),]
+ci_band = predict(model, sorted_data, interval = "confidence", level = 0.95)
+
+# Obtain confidence interval lines automatically using predict()
+pi_band = predict(model, sorted_data, interval = "prediction", level = 0.95)
+
+# Create scatter plot using plot()
+plot(Age, Shear_Strength)
+
+# Add line of predicted y_hat values using lines(). 
+# Be sure to use order() to ensure that x-values are in ascending (versus random) order
+
+# sorted Age column, or x-values, in ascending order are now , contained in sorted_data[,2]
+y_hat = beta_1*sorted_data[,2] + beta_0
+lines(sorted_data[,2], y_hat, lty = 1)
+
+# Add prediction interval lines using lines() and order() commands
+lines(sorted_data[,2], ci_band[,2], lty = 2)
+lines(sorted_data[,2], ci_band[,3], lty = 2)
+
+
+# Add confidence interval lines using lines() and order() commands
+lines(sorted_data[,2], pi_band[,2], lty = 3)
+lines(sorted_data[,2], pi_band[,3], lty = 3)
+
+legend("topright", legend = c("Fit","95% CI","95% PI"), lty = c(1,2,3))
+
+```
