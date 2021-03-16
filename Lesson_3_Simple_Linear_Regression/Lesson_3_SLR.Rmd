@@ -1,7 +1,7 @@
 ---
 title: "Lesson 3 R Activity"
 author: "Rick Davila"
-date: "4/25/2020"
+date: "4/26/2020"
 output:
   pdf_document: default
   html_document:
