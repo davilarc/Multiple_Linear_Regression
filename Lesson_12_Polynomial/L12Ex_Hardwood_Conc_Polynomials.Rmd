@@ -1,0 +1,190 @@
+---
+title: "L12Ex_Hardwood_Conc_Rick_Davila"
+author: "Rick Davila"
+date: "5/23/2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE, results="asis"}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library("xlsx")
+library(xtable)
+library(MASS) # Needed for ginv() function
+
+rm(list = ls())
+
+# load data
+Ex71 <- read.xlsx("data-ex-7-1.xlsx",
+  sheetIndex = 1, sheetName=NULL, rowIndex=NULL, 
+  startRow=NULL, endRow=NULL, colIndex= c(1,2),
+  as.data.frame=TRUE, header=TRUE, colClasses=NA, 
+  keepFormulas=FALSE, encoding="unknown")
+
+# Give labels to data columns
+names(Ex71) <- c("Concentration", 
+                 "Strength")
+attach(Ex71)
+
+# Output data to make sure it reads properly
+out <- as.data.frame(c(Ex71))
+colnames(out) <- c("Concentration", 
+                 "Strength")
+tab <- (xtable(out, digits=c(0,1,1)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(Ex71)
+dim(Ex71)
+
+```
+
+## Example 7.1 (p. 227-229)
+#### Create scatterplot
+
+```{r}
+
+plot(Concentration, Strength, main = "Scatterplot of Hardwood Concentration vs Tensile Strength",
+     xlab = "hardwood concentration (%)",
+     ylab = "tensile strength")
+
+```
+
+#### Fit a quadratic model on centered data; compare to p. 227
+
+```{r results="asis"}
+
+n <- length(Strength)
+x_mean <- sum(Concentration)/n
+x_1 <- Concentration - x_mean
+x_2 <- x_1^2
+
+model.71 <- lm(Strength ~ x_1 + x_2)
+
+summary(model.71)
+xtable(summary(model.71))
+
+```
+
+#### Create ANOVA table (by hand and with R); compare to Table 7.2 on p. 228
+
+```{r results="asis"}
+
+# create ANOVA table by hand
+n <- length(Strength)
+k <- 2                    # number of regressors
+p <- k + 1                # number of parameters
+
+X <- cbind(matrix(1,length(Strength),1),as.matrix(x_1),as.matrix(x_2))
+y <- as.matrix(Strength)
+
+# X'X matrix
+xTx <- t(X) %*% X
+
+# Beta Coefficients
+beta_hat <- ginv(xTx,tol =  .Machine$double.eps) %*% t(X) %*% y
+
+# eqn 3.24
+SS_Reg <- t(beta_hat) %*% t(X) %*% y - (sum(y))^2/n 
+
+MS_Reg <- SS_Reg/k
+
+# eqn 3.16
+SS_Res <- t(y) %*% y - t(beta_hat) %*% t(X) %*% y
+
+# eqn 3.17
+MS_Res <- SS_Res/(n-p)
+
+# eqn 3.24
+SS_T <- t(y) %*%  y - (sum(y))^2/n 
+
+F_0 <- MS_Reg/MS_Res
+
+# t-critical and p-value calculations
+# for alpha = 0.05
+alpha = 0.05
+
+p_val_f = 1 - pf(F_0, k, n-p)
+
+# create ANOVA table with R
+xtable(anova(model.71))
+
+```
+
+Anova table by hand is listed above.  The anova table by hand (i.e., values) are listed below:
+
+SS Regression: $`r SS_Reg`$
+
+SS Residual: $`r SS_Res`$
+
+SS Total: $`r SS_Res + SS_Reg`$
+
+Regression Degrees of Freedom: $`r k`$
+
+Residual Degrees of Freedom: $`r n-p`$   
+
+Total Degrees of Freedom: $`r k+n-p`$
+
+Mean Square Regression: $`r MS_Reg`$
+
+Mean Square Residual: $`r MS_Res`$
+
+$F_0 = `r F_0`$
+
+P Value: $`r p_val_f`$
+
+
+#### Test significance of quadratic term using Partial F-test. Use alpha = 0.01 as the significance level. Compare to p. 229
+
+```{r results="asis"}
+
+# full model including the quadratic term 
+model.full <- lm(Strength ~ x_1 + x_2)
+
+# reduced model excluding the quadratic term
+model.reduced <- lm(Strength ~ x_1)
+
+# anova -- comparision of reduced to full model
+anova(model.reduced, model.full)
+
+# F crit
+alpha <- 0.01
+df_SS_R <- anova(model.reduced, model.full)$'Df'[2]
+df_SS_Res <- anova(model.reduced, model.full)$'Res.Df'[2]
+
+F_crit <- qf(1-alpha,df_SS_R,df_SS_Res)
+
+```
+
+We're investigating the contribution of the quadratmodel.reduced, model.fullic term to the model. That is, we wish to test $$H_0: \beta_2=0, H_1:\beta_2 \ne 0 $$  we have $$ F_0 = \frac{SS_R(\beta_2|\beta_1,\beta_0)/1}{MS_{Res}}=\frac{`r anova(model.reduced, model.full)$'Sum of Sq'[2]`/`r anova(model.reduced, model.full)$'Df'[2]`}{`r anova(model.full)$'Mean Sq'[3]`}=`r anova(model.full)$'F'[2]` $$ and since $F_{0.01,1,16} = `r F_crit`$, we have $F_0 \gt F_{0.01,1,16}$ and as a result, we conclude that the quadratic term contributes significantly to the model. 
+
+#### Create residuals versus fits plot
+
+```{r}
+
+plot(model.71$fitted.values, model.71$residuals, main = "residuals (e_i) versus fitted values (ŷ_i)", xlab = "ŷi", ylab = "e_i")
+abline(0, 0, col = "gray")
+
+```
+
+This plot does not reveal any serious model inadequacy.
+
+#### Create normal probability plot of residuals
+
+```{r}
+
+# set datax = TRUE to resemble plot in book; default value is datax = FALSE
+# however, y- and x-label won't change iaw datax = TRUE
+qqnorm(model.71$residuals, datax = TRUE, main="normal probability plot of the residuals", ylab = "e_i", xlab = "expanded normal value")
+abline(0, 0, col = "gray")
+qqline(model.71$residuals, datax = TRUE)
+
+```
+
+The normal probability plot of the residuals indicates that the error distribution has heavier tails than the normal.

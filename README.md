@@ -8,3 +8,5 @@ R code for multiple linear regression - example code
 ## Lesson 7 - Transformations
 ## Lesson 8 - Transformations
 ## Lesson 9 - Outliers
+## Lesson 12 - Polynomials
+## Lesson 13 - Indicator Variables

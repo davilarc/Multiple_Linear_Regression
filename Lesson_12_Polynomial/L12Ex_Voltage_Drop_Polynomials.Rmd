@@ -1,0 +1,182 @@
+---
+title: "L12Ex_Voltage_Drop_Rick_Davila"
+author: "Rick Davila"
+date: "5/24/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE, results="asis"}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library("xlsx")
+library(xtable)
+library(MASS) # Needed for ginv() function
+
+rm(list = ls())
+
+# load data
+Ex72 <- read.xlsx(
+  "data-ex-7-2.xlsx",
+  sheetIndex = 1, sheetName=NULL, rowIndex=NULL, 
+  startRow=NULL, endRow=NULL, colIndex= c(1,2,3),
+  as.data.frame=TRUE, header=TRUE, colClasses=NA, 
+  keepFormulas=FALSE, encoding="unknown")
+
+# Give labels to data columns
+names(Ex72) <- c("obs", 
+                 "time",
+                 "voltage_drop")
+attach(Ex72)
+
+# Output data to make sure it reads properly
+out <- as.data.frame(c(Ex72))
+colnames(out) <- c("obs", 
+                 "time",
+                 "voltage_drop")
+tab <- (xtable(out, digits=c(0,0,1,2)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(Ex72)
+dim(Ex72)
+
+```
+
+## Example 7.2 (p.231-234)
+#### Create scatterplot
+
+```{r}
+
+plot(time, voltage_drop, main = "Scatterplot of time vs voltage drop",
+     xlab = "time (sec)",
+     ylab = "voltage drop")
+
+```
+
+## Fit a cubic spline using two knots, one at  t1=6.5 and one at t2=13
+#### Create indicator functions for the two knots
+
+```{r}
+t1 <- 6.5
+t2 <- 13
+
+x_t1 <- ifelse((time-t1)>0,(time-t1),0)
+x_t2 <- ifelse((time-t2)>0,(time-t2),0)
+  
+```
+
+#### Add columns to dataframe for the higher-order terms and spline terms
+ 
+```{r results="asis"}
+
+Ex72$x_b01 <- time
+Ex72$x_b02 <- time^2
+Ex72$x_b03 <- time^3
+Ex72$x_b1 <- x_t1^3
+Ex72$x_b2 <- x_t2^3
+
+# Output data to make sure it reads properly
+out <- as.data.frame(c(Ex72))
+#colnames(out) <- c("obs", 
+#                 "time",
+#                 "voltage_drop")
+tab <- (xtable(out, digits=c(0,0,1,2,3,3,3,3,3)))
+print(tab, type="html")
+
+```
+
+#### Fit model; compare to values in Table 7.4, p. 233
+
+```{r results="asis"}
+
+model.72 <- lm(voltage_drop ~ 
+                 Ex72$x_b01 +
+                 Ex72$x_b02 +
+                 Ex72$x_b03 +
+                 Ex72$x_b1 +
+                 Ex72$x_b2)
+
+summary(model.72)
+xtable(summary(model.72))
+
+```
+
+#### Reproduce ANOVA table on p. 233
+
+```{r results="asis"}
+
+summary(model.72)
+xtable(anova(model.72))
+
+```
+
+#### Test significance of spline terms using Partial F-test. Use alpha = 0.01 as the significance level
+
+```{r results="asis"}
+
+# full model including spline terms 
+model.full <- lm(voltage_drop ~ 
+                 Ex72$x_b01 +
+                 Ex72$x_b02 +
+                 Ex72$x_b03 +
+                 Ex72$x_b1 +
+                 Ex72$x_b2)
+
+# reduced model excluding spline terms
+model.reduced <- lm(voltage_drop ~ 
+                 Ex72$x_b01 +
+                 Ex72$x_b02 +
+                 Ex72$x_b03)
+
+# anova -- comparision of reduced to full model
+anova(model.reduced, model.full)
+
+# F crit
+alpha <- 0.01
+df_SS_R <- anova(model.reduced, model.full)$'Df'[2]
+df_SS_Res <- anova(model.reduced, model.full)$'Res.Df'[2]
+
+F_crit <- qf(1-alpha,df_SS_R,df_SS_Res)
+
+```
+
+We're investigating the contribution of the spline terms to the model. That is, we wish to test 
+$$H_0: \beta_1=\beta_2=0 $$
+we have 
+$$ F_0 = \frac{SS_R(\beta_1,\beta_2|\beta_{00},\beta_{01},\beta_{02},\beta_{03}/2}{MS_{Res}}=\frac{`r anova(model.reduced, model.full)$'Sum of Sq'[2]`/`r anova(model.reduced, model.full)$'Df'[2]`}{`r anova(model.full)$'Mean Sq'[6]`}=`r anova(model.reduced, model.full)$'F'[2]` $$
+and since $F_{0.01,2,35} = `r F_crit`$, we have $F_0 \gt F_{0.01,2,35}$ and as a result, we reject the null hypothesis and conclude that the spline terms contributes significantly to the model. 
+
+#### Create residuals versus fits plot for each model
+
+```{r}
+
+plot(model.72$fitted.values, model.72$residuals, main = "residuals e_i, versus fitted values ŷi for the cubic spline model", xlab = "ŷi", ylab = "e_i")
+abline(0, 0, col = "gray")
+
+# assumption, for the second model, like in the book, is to fit a cubic polynomial model and show a residuals versus fits plot
+
+x_b01b <- time
+x_b02b <- time^2
+x_b03b <- time^3
+
+model.72b <- lm(voltage_drop ~ 
+                 x_b01b +
+                 x_b02b +
+                 x_b03b)
+
+summary(model.72b)
+xtable(summary(model.72b))
+
+plot(model.72b$fitted.values, model.72b$residuals, main = "residuals e_i, versus fitted values ŷi for the cubic polynomial model", xlab = "ŷi", ylab = "e_i")
+abline(0, 0, col = "gray")
+
+```
+
+
+
