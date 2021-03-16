@@ -5,3 +5,6 @@ R code for multiple linear regression - example code
 ## Lesson 4 - Multiple Linear Regression
 ## Lesson 5 - Multiple Linear Regression Part II
 ## Lesson 6 - Model Adequacy Checking
+## Lesson 7 - Transformations
+## Lesson 8 - Transformations
+## Lesson 9 - Outliers

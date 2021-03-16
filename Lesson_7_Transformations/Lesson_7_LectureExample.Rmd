@@ -1,0 +1,130 @@
+---
+title: "Lesson 7 Lecture Example"
+author: "Rick Davila"
+date: "5/11/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Lesson 7 - Install packages
+#### Install necessary packages using library()
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(psych) # For geometric mean in Example 5.3
+
+rm(list = ls())
+
+```
+
+#### Read data file (data-ex-5-1.xlsx)
+
+```{r}
+
+exL <- read.xlsx("data-table-B09.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(1,2,3,4,5), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+```
+
+#### Assign labels to data columns using names() and attach() commands
+
+```{r}
+
+names(exL) <- c("fluid_vel", "viscosity","mesh_open","fluid_gas_vel","pressure_drop")
+attach(exL)
+
+```
+
+#### Output data to make sure it reads properly
+
+```{r results="asis"}
+
+out <- as.data.frame(c(exL))
+colnames(out) <- c("fluid_vel", "viscosity","mesh_open","fluid_gas_vel","pressure_drop")
+tab <- (xtable(out, digits=c(0,2,1,2,3,1)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(exL)
+dim(exL)
+
+```
+
+#### create multiple least squares model
+
+```{r results="asis"}
+
+model <- lm(pressure_drop ~ fluid_vel + viscosity + mesh_open + fluid_gas_vel)
+
+summary(model)
+
+xtable(summary(model))
+xtable(anova(model))
+
+```
+
+#### make a plot of the multiple least squares model
+
+```{r}
+
+plot(model)
+
+```
+
+```{r}
+# Let’s look at a plot of the R-student residuals versus the fitted values
+
+R_Student_Residuals <- rstudent(model)
+y_hat <- model$fitted.values
+plot(y_hat, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Pressure Drop", main = "R-Student Residuals versus Fitted Values")
+
+
+plot(fluid_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Velocity", main = "R-Student Residuals versus Fluid Velocity")
+plot(viscosity, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Viscosity", main = "R-Student Residuals versus Viscosity")
+plot(mesh_open, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Mesh Opening", main = "R-Student Residuals versus Mesh Opening")
+plot(fluid_gas_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Gas Velocity", main = "R-Student Residuals versus Fluid Gas Velocity")
+
+
+
+```
+
+### Since there's a huge gap in the residuals versus viscosity data, we'll try a natural log on the regressor.  Redo the exercise above, but, with the lm() using log of vicosity.
+
+```{r results="asis"}
+
+model <- lm(pressure_drop ~ fluid_vel + log(viscosity) + mesh_open + fluid_gas_vel)
+
+summary(model)
+
+xtable(summary(model))
+xtable(anova(model))
+
+plot(model)
+
+R_Student_Residuals <- rstudent(model)
+y_hat <- model$fitted.values
+plot(y_hat, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Pressure Drop", main = "R-Student Residuals versus Fitted Values")
+
+plot(fluid_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Velocity", main = "R-Student Residuals versus Fluid Velocity")
+plot(log(viscosity), R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Viscosity", main = "R-Student Residuals versus log(Viscosity)")
+plot(mesh_open, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Mesh Opening", main = "R-Student Residuals versus Mesh Opening")
+plot(fluid_gas_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Gas Velocity", main = "R-Student Residuals versus Fluid Gas Velocity")
+
+
+
+
+```
+
+
+
+

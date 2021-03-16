@@ -1,0 +1,269 @@
+---
+title: "Lesson 8 R Activity"
+author: "Rick Davila"
+date: "5/11/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Lesson 8 - Install packages
+#### Install necessary packages using library()
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(MASS) # Needed for ginv() function
+library(nlme) # Needed for lme()
+
+
+rm(list = ls())
+
+```
+
+## Example 5.5
+#### Upload data-ex-PrintingInk.xlsx and label columns
+
+```{r}
+
+exL8 <- read.xlsx("data-ex-PrintingInk.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(1,2,3,4,5), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+```
+
+#### Assign labels to data columns using names() and attach() commands
+
+```{r}
+
+names(exL8) <- c("x1","x2","x3","y_bar","s")
+attach(exL8)
+
+```
+
+#### Output data to make sure it reads properly
+
+```{r results="asis"}
+
+out <- as.data.frame(c(exL8))
+colnames(out) <- c("x1","x2","x3","y_bar","s")
+tab <- (xtable(out, digits=c(0,0,0,0,1,1)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(exL8)
+dim(exL8)
+
+```
+
+#### Create a linear model relating the regressors to the standard deviation ('s' in th data file)
+
+```{r results="asis"}
+
+
+model.1 <- lm(s ~ x1 + x2 + x3) 
+summary(model.1)
+
+xtable(summary(model.1))
+xtable(anova(model.1))
+
+```
+
+#### Define model weights
+
+```{r}
+
+# fitted standard deviations based on x1, x2 and x3 regressors
+y_hat.1 <- model.1$fitted.values    # fitted values
+wts.1 <- 1/(y_hat.1^2 + 1)          # weights using recommend approach
+V <- diag(1/wts.1)                  # diag matrix V
+W <- ginv(V, 
+          tol=.Machine$double.eps)  # diag matrix W
+
+```
+
+#### Solve weighted least squares using matrices
+
+```{r}
+
+# Define X matrix of regressor observations
+X <- cbind(matrix(1,length(x1),1),
+           as.matrix(x1),
+           as.matrix(x2),
+           as.matrix(x3))
+y <- as.matrix(y_bar)
+
+# Calculate C Matrix -- defined tol to use higher precision
+beta_matrix <- ginv(t(X) %*% W %*% X, 
+                    tol=.Machine$double.eps) %*% t(X) %*% W %*% y 
+
+```
+
+#### Solve weighted least squares using lm() and entering weights
+
+```{r}
+
+# us weights determined in previous section
+
+model.2 <- lm(y_bar ~ x1 + x2 + x3, weights = wts.1)
+summary(model.2)
+
+xtable(summary(model.2))
+xtable(anova(model.2))
+
+plot(model.2)
+
+# Calculate r_student residuals
+R_Student_Residuals.2 <- rstudent(model.2)
+
+y_hat.2 <- model.2$fitted.values
+
+plot(y_hat.2, R_Student_Residuals.2, ylab = "R-Student Residuals", xlab = "y_bar", main = "R−Student Residuals versus Fitted Values")
+
+```
+
+#### Display both sets of coefficients - should be the same (minor differences possible due to rounding)
+
+```{r results="asis"}
+
+model.1coeff <- as.data.frame(c(beta_matrix[1],
+                                beta_matrix[2],
+                                beta_matrix[3],
+                                beta_matrix[4]))
+model.2coeff <- as.data.frame(c(model.2$coefficients[1],
+                                model.2$coefficients[2],
+                                model.2$coefficients[3],
+                                model.2$coefficients[4]))
+
+out <- as.data.frame(c(model.1coeff, model.2coeff))
+colnames(out) <- c("matrix",
+                   "using lm()")
+rownames(out) <- c("beta_0","beta_1","beta_2","beta_3")
+tab <- (xtable(out, digits=c(0,6,6)))
+print(tab, type="html")
+
+```
+
+## Example 5.6 (p. 196-199)
+#### Upload data-ex-5-6.xlsx and label columns
+
+```{r results="asis"}
+
+exL8_5pt6 <- read.xlsx("data-ex-5-6.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(1,2,3,4,5,6), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+names(exL8_5pt6) <- c("Helicopter", 
+                      "Aspect", 
+                      "Paper", 
+                      "Interaction", 
+                      "Rep", 
+                      "Time")
+attach(exL8_5pt6)
+
+out <- as.data.frame(c(exL8_5pt6))
+colnames(out) <- c("Helicopter",
+                      "Aspect",
+                      "Paper",
+                      "Interaction",
+                      "Rep",
+                      "Time")
+tab <- (xtable(out, digits=c(0,0,0,0,0,0,2)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(exL8_5pt6)
+dim(exL8_5pt6)
+
+```
+
+#### Create a linear model predicting time as a function of aspect, paper,and the interaction. Results should match Table 5.11.
+
+```{r}
+
+model.3 <- lm(Time ~ Aspect + Paper + Interaction)
+summary(model.3)
+
+xtable(summary(model.3))
+xtable(anova(model.3))
+
+```
+
+#### Create a linear model of groups, with the response being the group average (i.e. use Table 5.14 as input data). Results should match Table 5.15. Okay to manually input the Table 5.14 information.
+
+```{r}
+
+Helicopter <- c(1,2,3,4,5,6,7,8)
+Aspect <- c(1,-1,-1,-1,1,1,1,-1)
+Paper <- c(-1,-1,1,1,1,-1,1,-1)
+Interaction <- c(-1,1,-1,-1,1,-1,1,1)
+Time <- c(3.81, 6.53, 6.973, 6.443, 3.54, 3.86, 4.75, 6.583)
+
+model.4 <- lm(Time ~ Aspect + Paper + Aspect*Paper)
+summary(model.4)
+
+xtable(summary(model.4))
+xtable(anova(model.4))
+
+```
+
+## Example 5.7 (p.201-202)
+
+#### Upload data-ex-5-7.xlsx and label columns
+
+```{r results="asis"}
+
+exL8_5pt7 <- read.xlsx("data-ex-5-7.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3,4,5), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+names(exL8_5pt7) <- c("time", 
+                      "cases", 
+                      "distance", 
+                      "city")
+attach(exL8_5pt7)
+
+out <- as.data.frame(c(exL8_5pt7))
+colnames(out) <- c("time",
+                   "cases", 
+                   "distance",
+                   "city")
+tab <- (xtable(out, digits=c(0,2,0,0,0)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(exL8_5pt7)
+dim(exL8_5pt7)
+
+```
+
+#### Run regression model using City as a random factor using lme(). Compare StdDev for (Intercept) and Residual to variances in Figure 5.12.
+
+```{r}
+
+model.5 <- lme(time ~ cases + distance, random =~1|city)
+
+summary(model.5)
+xtable(anova(model.5))
+
+plot(model.5)
+
+sd_res <- model.5$sigma
+var_res <- sd_res^2
+
+```
+
+From lme(), the standard deviation for the residual is $`r sd_res`$, which, when squared is equal to the variance in Figure 5.12 in the book, $`r var_res`$.
+
+Similarly, for the Intercept, the standard deviation is $1.609268$, and the variance is $2.589743$, matching the value in Figure 5.12.

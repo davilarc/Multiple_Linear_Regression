@@ -1,0 +1,330 @@
+---
+title: "Lesson 9 R Activity"
+author: "Rick Davila"
+date: "5/13/2020"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+## Lesson 9 - Install packages
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(MASS) # Needed for ginv() function
+
+rm(list = ls())
+
+```
+
+#### Upload data-ex-3-1.xlsx data file and label columns
+
+```{r results="asis"}
+exL9 <- read.xlsx("data-ex-3-1.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3,4), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+# Assign labels to data columns using names() and attach() commands
+names(exL9) <- c("time","cases","distance")
+attach(exL9) 
+
+# Output data to make sure it reads properly
+out <- as.data.frame(c(exL9))
+colnames(out) <- c("time","cases","distance")
+tab <- (xtable(out, digits=c(0,2,0,0)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(exL9)
+dim(exL9)
+
+```
+
+## Example 6.1 (p.213-214)
+#### Calculate hat matrix values (by hand)
+
+```{r}
+
+X <- cbind(matrix(1,length(distance),1),as.matrix(cases),as.matrix(distance))
+y <- as.matrix(time)
+
+xTx <- t(X) %*% X
+H_matrix <- X %*% ginv(xTx, tol=.Machine$double.eps) %*% t(X)
+
+# get the diagonal
+diag(H_matrix)
+
+```
+
+#### Calculate hat matrix values automatically
+
+```{r}
+
+# perform multiple least squares regression
+model <-  lm(time ~ cases+distance)
+
+# calculate hat matrix automatically
+hat_diags <- lm.influence(model)$hat
+hat_diags
+
+```
+
+#### Create data frame to reproduce Table 6.1 on p. 214 - start with column for Observation and h_ii
+
+```{r results="asis"}
+
+# sequence of observations
+Obs <- seq(1, length(time))
+
+influence_stats <- data.frame(cbind(Obs, hat_diags))
+
+out <- influence_stats
+colnames(out) <- c("Obs $i$", "$h_{ii}$")
+tab <- (xtable(out, digits=c(0,0,5)))
+print(tab, type="html")
+
+```
+
+#### Create shell of unnamed table on p. 213
+
+```{r results="asis"}
+
+Run <- c("9 and 22 in",
+         "9 out",
+         "22 out",
+         "9 and 22 out")
+beta_0 <- c(" "," "," "," ")
+beta_1 <- c(" "," "," "," ")
+beta_2 <- c(" "," "," "," ")
+MS_Res <- c(" "," "," "," ")
+R_sqrd <- c(" "," "," "," ")
+
+unnamed_table <- data.frame(cbind(Run,
+                                  beta_0,
+                                  beta_1,
+                                  beta_2,
+                                  MS_Res,
+                                  R_sqrd))
+out <- unnamed_table
+colnames(out) <- c("Run",
+                   "beta_hat_0",
+                   "beta_hat_1",
+                   "beta_hat_2",
+                   "$MS_{Res}$",
+                   "$R_2$")
+tab <- (xtable(out, digits=c(0,0,0,0,0,0,0)))
+print(tab, type="html")
+
+```
+
+#### Create models for the four scenarios in the unnamed table on p. 213
+#### Note: Deletions using subset= are done sequentially. So, subset=(1:N)[-1][-2] removes the first observation and then the second of the remaining observations.
+
+```{r}
+
+# scenario 1, points 9 and 22 in
+time.s1 <- time
+cases.s1 <- cases
+distance.s1 <- distance
+
+model.s1 <-  lm(time.s1 ~ cases.s1 + distance.s1)
+
+# scenario 2, point 9 out
+time.s2 <- time[1:length(time)][-9]
+cases.s2 <- cases[1:length(cases)][-9]
+distance.s2 <- distance[1:length(distance)][-9]
+
+model.s2 <-  lm(time.s2 ~ cases.s2 + distance.s2)
+
+# scenario 3, point 22 out
+time.s3 <- time[1:length(time)][-22]
+cases.s3 <- cases[1:length(cases)][-22]
+distance.s3 <- distance[1:length(distance)][-22]
+
+model.s3 <-  lm(time.s3 ~ cases.s3 + distance.s3)
+
+# scenario 4, points 9 and 22 out
+time.s4 <- time[1:length(time)][-9][-21]
+cases.s4 <- cases[1:length(cases)][-9][-21]
+distance.s4 <- distance[1:length(distance)][-9][-21]
+
+model.s4 <-  lm(time.s4 ~ cases.s4 + distance.s4)
+
+
+```
+
+#### Display completed (unnamed) table on bottom of p. 213
+
+```{r results="asis"}
+
+Run <- c("9 and 22 in",
+         "9 out",
+         "22 out",
+         "9 and 22 out")
+
+beta_0 <- as.data.frame(c(model.s1$coeff[1],
+            model.s2$coeff[1],
+            model.s3$coeff[1],
+            model.s4$coeff[1]))
+
+beta_1 <- as.data.frame(c(model.s1$coeff[2],
+            model.s2$coeff[2],
+            model.s3$coeff[2],
+            model.s4$coeff[2]))
+
+beta_2 <- as.data.frame(c(model.s1$coeff[3],
+            model.s2$coeff[3],
+            model.s3$coeff[3],
+            model.s4$coeff[3]))
+
+MS_Res <- as.data.frame(c(anova(model.s1)$'Mean Sq'[3],
+            anova(model.s2)$'Mean Sq'[3],
+            anova(model.s3)$'Mean Sq'[3],
+            anova(model.s4)$'Mean Sq'[3]))
+
+R_sqrd <- as.data.frame(c(summary(model.s1)$r.squared,
+            summary(model.s2)$r.squared,
+            summary(model.s3)$r.squared,
+            summary(model.s4)$r.squared))
+
+unnamed_table2 <- data.frame(cbind(Run,
+                                  beta_0,
+                                  beta_1,
+                                  beta_2,
+                                  MS_Res,
+                                  R_sqrd))
+out2 <- unnamed_table2
+
+colnames(out2) <- c("Run",
+                   "beta_hat_0",
+                   "beta_hat_1",
+                   "beta_hat_2",
+                   "$MS_{Res}$",
+                   "$R_2$")
+
+rownames(out2) <- c("1","2","3","4")
+tab2 <- (xtable(out2, digits=c(0,0,3,3,3,3,4)))
+print(tab2, type="html")
+
+```
+
+## Example 6.2 (p.216)
+#### Calculate Cook's D using Equation 6.5
+
+```{r}
+
+# rstudent residual calculation
+model.1 <- lm(time ~ cases + distance)
+
+# Calculate studentized residuals, r_i (eqn 4.8)
+e_i <- model.1$residuals
+MS_Res <- anova(model.1)$'Mean Sq'[3]
+r_i <- e_i/sqrt(MS_Res * (1-hat_diags))
+
+p <- sum(hat_diags)
+
+D_i <- ((r_i)^2/p) * (hat_diags/(1-hat_diags))
+
+D_i
+
+```
+
+#### Calculate Cook's D using cooks.distance(). Does this give the same answer as the "by hand" approach?
+
+```{r}
+
+D_i_auto <- cooks.distance(model.1)
+D_i_auto
+
+```
+
+cooks.distance() matches the output from the by-hands approach.
+
+#### Add Cook's D to the Table 6.1 dataframe
+
+```{r}
+
+# obtain and add Cook's D to table 6.1 dataframe
+influence_stats$Cooks_D <- c(D_i_auto)
+
+```
+
+## Example 6.3 (p.218-219)
+#### Calculate DFFITS and DFBETAS using R
+
+```{r}
+
+influence_stats$DFFITS <- c(dffits(model.1))
+dfbetas.col <- dfbetas(model.1)
+influence_stats$DFBETAS_0 <- c(dfbetas.col[,1])
+influence_stats$DFBETAS_1 <- c(dfbetas.col[,2])
+influence_stats$DFBETAS_2 <- c(dfbetas.col[,3])
+
+```
+
+#### Update Table 6.1
+
+```{r results="asis"}
+out <- influence_stats
+colnames(out) <- c("Obs $i$",
+                   "$h_{ii}$",
+                   "$D_i$",
+                   "$DFFITS_i$",
+                   "$DFBETAS_{0i}$",
+                   "$DFBETAS_{1i}$",
+                   "$DFBETAS_{2i}$")
+
+tab <- (xtable(out, digits=c(0,0,5,5,4,4,4,4)))
+print(tab, type="html")
+
+```
+
+## Example 6.4 (p. 219)
+#### Calculate Covariance Ratio using R
+
+```{r}
+
+influence_stats$covratio <- c(covratio(model.1))
+
+```
+
+#### Update Table 6.1
+
+```{r results="asis"}
+
+out <- influence_stats
+colnames(out) <- c("Obs $i$",
+                   "$h_{ii}$",
+                   "$D_i$",
+                   "$DFFITS_i$",
+                   "$DFBETAS_{0i}$",
+                   "$DFBETAS_{1i}$",
+                   "$DFBETAS_{2i}$",
+                   "$COVRATIO_i$")
+
+tab <- (xtable(out, digits=c(0,0,5,5,4,4,4,4,4)))
+print(tab, type="html")
+
+```
+
+#### Identify observations that exceed limits of 1 +/- 3p/n for COVRATIO using which() and the "or" logical operator (|). Are these the same points identified in the textbook?
+
+```{r}
+
+n <- length(time)
+limit_plus <- (1 + 3*p/n)
+limit_minus <- (1 - 3*p/n)
+points <- which(influence_stats$covratio > limit_plus | influence_stats$covratio < limit_minus)
+
+```
+
+Points $`r points`$ exceed the cutoff $COVRATIO_i$ limits of $`r limit_minus`$ and $`r limit_plus`$.  The textbook identified points 9 and 22, but not point 16.  For my calculations, point 16 barely exceeds the $`r limit_plus`$ limit.

@@ -1,0 +1,271 @@
+---
+title: "Lesson 7 R Activity 2"
+author: "Rick Davila"
+date: "5/10/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Lesson 7, Windmill Example - Install packages
+#### Install necessary packages using library()
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(psych) # For geometric mean in Example 5.3
+
+rm(list = ls())
+
+```
+
+#### Read data file (data-ex-5-2.xlsx)
+
+```{r}
+
+ex5_2 <- read.xlsx("data-ex-5-2.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+```
+
+#### Assign labels to data columns using names() and attach() commands
+
+```{r}
+
+names(ex5_2) <- c("Wind_Velocity", "DC_Output")
+attach(ex5_2)
+
+```
+
+#### Output data to make sure it reads properly
+
+```{r results="asis"}
+
+out <- as.data.frame(c(ex5_2))
+colnames(out) <- c("Wing_Velocity", "DC_Output")
+tab <- (xtable(out, digits=c(0,2,3)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(ex5_2)
+dim(ex5_2)
+
+```
+
+## Example 5.2 (p. 178-181)
+#### Create scatterplot to visualize data
+
+```{r}
+
+plot(Wind_Velocity,DC_Output, main = "Scatter plot of DC output vs Wind Velocity (mph)")
+
+```
+
+#### Fit linear model first; compare results to p. 178
+
+
+```{r}
+
+# Obtain regression estimates using lm command
+model <- lm(DC_Output ~ Wind_Velocity)
+beta_0 <- model$coefficients[1]
+beta_1 <- model$coefficients[2]
+
+# show beta estimates, std. error, tvalues and p-values
+xtable(model)
+xtable(summary(aov(model)))
+
+```
+
+The equation for the linear regression model: 
+$$\hat{y} = (`r beta_0`) + (`r beta_1`)x$$
+
+```{r}
+
+# ANOVA table
+# summary(aov)
+out <- anova(model)
+
+xtable(out)
+
+```
+
+#### Create residual plots - R-Student and raw residuals versus fitted values
+
+```{r}
+
+# DC_Output, given Wind_Velocity
+model <- lm(DC_Output ~ Wind_Velocity)
+beta_0 <- model$coefficients[1]
+beta_1 <- model$coefficients[2]
+
+# Calculate y_hat
+y_hat <- beta_0 + beta_1*Wind_Velocity
+
+# Calculate R-Student residuals
+residuals <- rstudent(model)
+
+plot(y_hat, residuals, main='Plot of R-student values t_i versus fitted values y_hat', xlab = 'y_hat', ylab = 'Rstudent() Residuals (t_i)')
+
+```
+
+#### Residual plots show clear nonlinearity. Attempt to rectify through transformation: x' = 1/x
+
+```{r}
+
+Wind_Velocity_t <- 1/Wind_Velocity
+
+```
+
+#### Create scatterplot and model using transformed data; compare to p. 180 and 181
+
+```{r}
+
+plot(Wind_Velocity_t,DC_Output, main = "Scatter plot of DC output vs Wind Velocity Transformed (mph)")
+
+# create lm() model with transformed wind velocity
+model_t <- lm(DC_Output ~ Wind_Velocity_t)
+
+# 
+xtable(model_t)
+xtable(summary(aov(model_t)))
+
+```
+
+#### Plot residuals versus fitted values; compare to p. 182
+
+```{r}
+
+# Calculate r_student residuals
+R_Student_Residuals_t <- rstudent(model_t)
+
+y_hat_t <- model_t$fitted.values
+
+plot(y_hat_t, R_Student_Residuals_t, ylab = "R-Student Residuals", xlab = "Transformed Wind Velocity", main = "R−Student Residuals versus Fitted Values")
+
+```
+
+## Example 5.4 (p. 187)
+
+#### Determine alpha value to transform independent variable using Box-Tidwell Procedure
+#### Step 1.0: Define alpha_0 = 1 and run simple regression model (performed in Example 5.1 above)
+
+```{r}
+
+# Obtain regression estimates using lm command, for alpha_0 = 0
+model <- lm(DC_Output ~ Wind_Velocity)
+beta_0 <- model$coefficients[1]
+beta_1 <- model$coefficients[2]
+
+# show beta estimates, std. error, tvalues and p-values
+xtable(model)
+xtable(summary(aov(model)))
+
+```
+
+For step 1.0 we have, the equation for the linear regression model is:
+
+$$\hat{y} = \hat{\beta_0}+\hat{\beta_1}x = (`r beta_0`) + (`r beta_1`)x$$
+
+
+#### Step 1.1: Define 2 = x ln x and add to model as an independent variable; compare output to p. 187
+
+
+```{r}
+
+# Then defining w = x ln x, we fit Eq. (5.8) and obtain
+w <- Wind_Velocity*log(Wind_Velocity)           #  w = xlog(x)
+model <- lm(DC_Output ~ Wind_Velocity + w)
+beta_0_star <- model$coefficients[1]
+beta_1_star <- model$coefficients[2]
+gamma_1 <- model$coefficients[3]
+
+# show beta estimates, std. error, tvalues and  p-values
+xtable(model)
+xtable(summary(aov(model)))
+
+```
+
+
+For step 1.1 we have, the equation for the linear regression model is:
+$$\hat{y} =\hat{\beta_0}^* +\hat{\beta_1}^*x + \hat{\gamma}w= (`r beta_0_star`) + (`r beta_1_star`)x + (`r gamma_1`)w$$
+
+
+#### Step 1.2: Using  Equation 5.10, calculate alpha_1; compare to p. 187 
+
+
+```{r}
+
+alpha_1 <- (gamma_1/beta_1) + 1
+
+```
+
+
+For step 1.2, we have:
+$$\alpha_1 = \frac{\hat{\gamma}}{\hat{\beta_1}} + 1=(`r alpha_1`)$$
+
+#### Step 2.0: Define x' = x^alpha_1 and regress model with alpha_0 = 0; compare to p. 187
+
+
+```{r}
+
+# Obtain regression estimates using lm command, for alpha_0 = 1
+Wind_Velocity_t1 <- Wind_Velocity^(alpha_1)
+model <- lm(DC_Output ~ Wind_Velocity_t1)
+beta_0_t <- model$coefficients[1]
+beta_1_t <- model$coefficients[2]
+
+# show beta estimates, std. error, tvalues and  p-values
+xtable(model)
+xtable(summary(aov(model)))
+
+```
+
+
+For step 2.0, $x^{\prime}=x^{`r alpha_1`}$ and the equation for the linear regression model is:
+$$\hat{y} = \hat{\beta_0}+\hat{\beta_1}x^{\prime} = (`r beta_0_t`) + (`r beta_1_t`)x^{\prime}$$
+
+
+#### Step 2.1: Define w' = x' ln x', add as independent variable, and run model
+
+
+```{r}
+
+# Obtain regression estimates using lm command 
+w_t1 <- Wind_Velocity_t1*log(Wind_Velocity_t1) # w = x'log(x')
+model <- lm(DC_Output ~ Wind_Velocity_t1 + w_t1)
+beta_0_star_t1 <- model$coefficients[1]
+beta_1_star_t1 <- model$coefficients[2]
+gamma_1_t1 <- model$coefficients[3]
+
+# show beta estimates, std. error, tvalues and  p-values
+xtable(model)
+xtable(summary(aov(model)))
+
+
+```
+
+
+For step 2.1 we have, the equation for the linear regression model is:
+
+$$\hat{y} =\hat{\beta_0}^* +\hat{\beta_1}^*x^{\prime}+\hat{\gamma}w^{\prime} = (`r beta_0_star_t1`) + (`r beta_1_star_t1`)x^{\prime} + (`r gamma_1_t1`)w^{\prime}$$
+
+
+#### Step 2.2: Using equation 5.10, calculate alpha_2; compare to value on p. 187. Pretty close to -1, which was the transformation in Example 5.2. 
+
+```{r}
+
+alpha_2 <- (gamma_1_t1/beta_1_t) + alpha_1
+
+```
+
+
+$$\alpha_2 = \frac{\hat{\gamma}}{\hat{\beta_1}} + \alpha_1 =(`r alpha_2`)$$

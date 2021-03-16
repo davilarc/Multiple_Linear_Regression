@@ -1,0 +1,261 @@
+---
+title: "Lesson 9 Lecture Example"
+author: "Rick Davila"
+date: "5/16/2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Lesson 9 - Install packages
+#### Install necessary packages using library()
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(psych) # For geometric mean in Example 5.3
+library(MASS) # Needed for ginv() function
+
+rm(list = ls())
+
+```
+
+#### Read data file (data-table-B09.xlsx)
+
+```{r}
+
+exL <- read.xlsx("data-table-B09.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(1,2,3,4,5), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+```
+
+#### Assign labels to data columns using names() and attach() commands
+
+```{r}
+
+names(exL) <- c("fluid_vel", "viscosity","mesh_open","fluid_gas_vel","pressure_drop")
+attach(exL)
+
+```
+
+#### Output data to make sure it reads properly
+
+```{r results="asis"}
+
+out <- as.data.frame(c(exL))
+colnames(out) <- c("fluid_vel", "viscosity","mesh_open","fluid_gas_vel","pressure_drop")
+tab <- (xtable(out, digits=c(0,2,1,2,3,1)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(exL)
+dim(exL)
+
+```
+
+#### create multiple least squares model
+
+```{r results="asis"}
+
+model <- lm(pressure_drop ~ fluid_vel + viscosity + mesh_open + fluid_gas_vel)
+
+summary(model)
+
+xtable(summary(model))
+xtable(anova(model))
+
+```
+
+#### make a plot of the multiple least squares model
+
+```{r}
+
+plot(model)
+
+```
+
+```{r}
+# Let’s look at a plot of the R-student residuals versus the fitted values
+
+R_Student_Residuals <- rstudent(model)
+y_hat <- model$fitted.values
+plot(y_hat, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Pressure Drop", main = "R-Student Residuals versus Fitted Values")
+
+
+plot(fluid_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Velocity", main = "R-Student Residuals versus Fluid Velocity")
+plot(viscosity, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Viscosity", main = "R-Student Residuals versus Viscosity")
+plot(mesh_open, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Mesh Opening", main = "R-Student Residuals versus Mesh Opening")
+plot(fluid_gas_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Gas Velocity", main = "R-Student Residuals versus Fluid Gas Velocity")
+
+
+
+```
+
+### Since there's a huge gap in the residuals versus viscosity data, we'll try a natural log on the regressor.  Redo the exercise above, but, with the lm() using log of vicosity.
+
+```{r results="asis"}
+
+model <- lm(pressure_drop ~ fluid_vel + log(viscosity) + mesh_open + fluid_gas_vel)
+
+summary(model)
+
+xtable(summary(model))
+xtable(anova(model))
+
+plot(model)
+
+R_Student_Residuals <- rstudent(model)
+y_hat <- model$fitted.values
+plot(y_hat, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Pressure Drop", main = "R-Student Residuals versus Fitted Values")
+
+plot(fluid_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Velocity", main = "R-Student Residuals versus Fluid Velocity")
+plot(log(viscosity), R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Viscosity", main = "R-Student Residuals versus log(Viscosity)")
+plot(mesh_open, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Mesh Opening", main = "R-Student Residuals versus Mesh Opening")
+plot(fluid_gas_vel, R_Student_Residuals, ylab = "R-Student Residuals", xlab = "Fluid Gas Velocity", main = "R-Student Residuals versus Fluid Gas Velocity")
+
+```
+
+# Lesson 9 additions
+
+```{r}
+exL2 <- read.xlsx("data-table-B13.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3,4,5,6,7,8), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+names(exL2) <- c("thrust",
+                 "primary",
+                 "secondary",
+                 "fuel",
+                 "press",
+                 "exhaust",
+                 "ambient")
+attach(exL2)
+
+# Output data structure and dimensions
+str(exL2)
+dim(exL2)
+
+```
+
+```{r results="asis"}
+
+out <- as.data.frame(c(exL2))
+colnames(out) <- c("thrust", "primary","secondary","fuel","press","exhaust","ambient")
+tab <- xtable(out, digits=c(0,0,0,0,0,0,0,0))
+print(tab, type="html")
+
+# Perform preliminary calculations that we might use at some point
+N <- length(thrust)
+
+X <- matrix(c(rep(1, N), 
+              exL2[, "primary"],
+              exL2[, "secondary"],
+              exL2[, "fuel"],
+              exL2[, "press"],
+              exL2[, "exhaust"],
+              exL2[, "ambient"]), ncol = 7, byrow = FALSE) # Define X matrix of regressor observations
+xTx <- t(X) %*% X # Calulate the matrix product of X_Transpose and X
+C <- ginv(xTx, tol=.Machine$double.eps) # Define C matrix
+
+
+```
+
+
+Jet Turbine Ex -- lm() fit
+
+```{r}
+
+model.jet <- lm(thrust ~ primary + secondary + fuel + press + exhaust + ambient)
+
+model.jet
+summary(model.jet)
+anova(model.jet)
+
+df_T <- N - 1
+df_Regression <- length(model.jet$coefficients) - 1 # Number of predictor variables, two in this case
+k <- df_Regression # Sometimes helpful to use the variable
+p <- k + 1 # Same reasoning
+df_Residual <- df_T - df_Regression 
+
+y_observed <- exL2[, "thrust"] # Create vector of dependent variable observations
+y_predicted <- (X %*% ginv(t(X)%*%X,tol=.Machine$double.eps) %*% t(X)) %*% y_observed # Hat matrix approach, just for grins.
+y_bar <- mean(y_observed)
+
+xTy <- t(X) %*% y_observed # Define rhs of least squares normal equations in matrix form
+BetaCoefficients <- C %*% xTy # Calculate using ginv()
+ResidualVector <- y_observed - X%*%BetaCoefficients # Define vector of residuals for each observation
+SS_Residuals <- t(ResidualVector) %*% ResidualVector # Dot product of residual vector and its transpose
+
+SST_dt <- sum((y_observed - y_bar)^2)
+
+SS_Regression_dt <- sum((y_predicted - y_bar)^2)
+SS_Residual_dt <- SST_dt - SS_Regression_dt
+
+MS_Regression <- SS_Regression_dt / df_Regression
+MS_Residual <- SS_Residual_dt / df_Residual
+
+F_test <- MS_Regression / MS_Residual
+t_test <- BetaCoefficients / sqrt(MS_Residual * diag(C)) # Formula on p.88
+
+significanceLevel <- 0.05
+F_critical <- qf(1-significanceLevel/2, df_Regression, df_Residual)
+t_critical <- qt(1-significanceLevel/2, df_Residual)
+#p_val <- 2*(1 - pt(t_test, df_Residual)) # Multiply by two since it is a two-tailed hypothesis test
+
+# compare with my calculations
+alpha = 0.05
+
+tcritical_value = abs(qt(alpha/2, df = df_Residual))
+p_values = 2*pt(-abs(t_test), df = df_Residual)
+
+
+
+```
+
+```{r}
+
+qqnorm(model.jet$residuals,main="Normal QQ plot of Residuals (e_i)")
+qqline(model.jet$residuals)
+
+plot(thrust,rstudent(model.jet), main="residuals vs fits (thrust)",
+     ylab="r-student residual")
+abline(0, 0, col="gray")
+
+plot(primary,rstudent(model.jet), main="residuals vs primary",
+     ylab="r-student residual")
+abline(0, 0, col="gray")
+
+plot(secondary,rstudent(model.jet), main="residuals vs secondary",
+     ylab="r-student residual")
+abline(0, 0, col="gray")
+
+plot(fuel,rstudent(model.jet), main="residuals vs fuel", 
+     ylab="r-student residual")
+abline(0, 0, col="gray")
+
+plot(press,rstudent(model.jet), main="residuals vs press", 
+     ylab="r-student residual")
+abline(0, 0, col="gray")
+
+plot(exhaust,rstudent(model.jet), main="residuals vs exhaust",
+     ylab="r-student residual")
+abline(0, 0, col="gray")
+
+plot(ambient,rstudent(model.jet), main="residuals vs ambient",
+     ylab="r-student residual")
+abline(0, 0, col="gray")
+
+```
+
+
+

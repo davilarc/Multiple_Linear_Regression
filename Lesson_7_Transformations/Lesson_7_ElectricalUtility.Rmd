@@ -1,0 +1,231 @@
+---
+title: "Lesson 7 R Activity 1"
+author: "Rick Davila"
+date: "5/8/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Lesson 7 - Install packages
+#### Install necessary packages using library()
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(e1071)
+library(xtable)
+library("xlsx") # Needed to read data
+library(psych) # For geometric mean in Example 5.3
+
+rm(list = ls())
+
+```
+
+#### Read data file (data-ex-5-1.xlsx)
+
+```{r}
+
+ex5_1 <- read.xlsx("data-ex-5-1.xlsx",
+                   sheetIndex = 1, 
+                   colIndex = c(2,3), 
+                   as.data.frame = TRUE, 
+                   header = TRUE)
+
+```
+
+#### Assign labels to data columns using names() and attach() commands
+
+```{r}
+
+names(ex5_1) <- c("Usage", "Demand")
+attach(ex5_1)
+
+```
+
+#### Output data to make sure it reads properly
+
+```{r results="asis"}
+
+out <- as.data.frame(c(ex5_1))
+colnames(out) <- c("Usage", "Demand")
+tab <- (xtable(out, digits=c(0,0,2)))
+print(tab, type="html")
+
+# Output data structure and dimensions
+str(ex5_1)
+dim(ex5_1)
+
+```
+
+## Example 5.1 (p. 173-175)
+#### Create scatterplot of data
+
+```{r}
+
+plot(Usage,Demand, main = "Scatter plot of energy demand (kW) vs energy usage (kWh)")
+
+```
+
+#### Create linear model and display ANOVA table. Compare to least squares fit on p. 173 and ANOVA table on p. 175
+
+```{r}
+
+# Obtain regression estimates using lm command
+model <- lm(Demand ~ Usage)
+beta_0 <- model$coefficients[1]
+beta_1 <- model$coefficients[2]
+
+# show beta estimates, std. error, tvalues and p-values
+xtable(model)
+
+```
+
+The equation for the linear regression model: 
+$$\hat{y} = (`r beta_0`) + (`r beta_1`)x$$
+
+```{r}
+
+# ANOVA table
+# summary(aov)
+out <- anova(model)
+
+xtable(out)
+
+```
+
+#### Create plot of R-Student values versus fitted values
+
+```{r}
+
+# Demand, given Usage
+model <- lm(Demand ~ Usage)
+beta_0 <- model$coefficients[1]
+beta_1 <- model$coefficients[2]
+
+# show beta estimates, std. error, tvalues and p-values
+xtable(model)
+
+# Calculate y_hat
+y_hat <- beta_0 + beta_1*Usage
+
+# Calculate R-Student residuals
+residuals <- rstudent(model)
+
+plot(y_hat, residuals, main='Plot of R-student values t_i versus fitted values y_hat', xlab = 'y_hat', ylab = 'Rstudent() Residuals (t_i)')
+
+```
+
+#### Transform and regress on y* = sqrt(y).Compare to least squares fit on p. 173
+
+```{r}
+
+y_star <- sqrt(Demand)
+
+# Demand using sqrt transformation, given Usage
+model.star <- lm(y_star ~ Usage)
+beta_0 <- model.star$coefficients[1]
+beta_1 <- model.star$coefficients[2]
+
+# show beta estimates, std. error, tvalues and p-values
+xtable(model)
+
+# Calculate y_hat
+y_hat_star <- beta_0 + beta_1*Usage
+
+```
+
+#### Create plot of R-Student values versus fitted values of transformed model
+
+```{r}
+
+# Calculate R-Student residuals
+residuals <- rstudent(model.star)
+
+plot(y_hat_star, residuals, main='Plot of R-student values t_i versus fitted values y_hat_star', xlab = 'y_hat', ylab = 'Rstudent() Residuals (t_i)')
+
+```
+
+## Example 5.3 (p. 184)
+#### Perform Box-Cox transformation of Electric Utility data using boxcox() function.  boxcox() outputs a range of x and y values. Plot those values and compare to p. 185. Why are the plots different?
+
+```{r}
+
+# create least sqares model
+model <- lm(Demand ~ Usage)
+library(MASS) # library containg boxcox
+bc <- boxcox(Demand ~ Usage)
+
+```
+
+The boxcox() calcultes a log-likelhood for the y-axis versus the book using an approximate Confidence Interval for λ (based on the $SS_{Res})$.
+
+#### Find value of lambda ("y" in R's boxcox notation) using which() and max() functions
+
+```{r}
+
+# extract lambda
+best.lambda <- bc$x[which(bc$y==max(bc$y))]
+
+```
+
+The best lambda is $\lambda =`r best.lambda`$
+
+#### Transform y (Demand) using Box-Cox transformation Equation 5.1 on p. 182. Vary lambda values and compare SS_Residual to Table 5.7 on p. 185
+
+```{r results="asis"}
+
+# power transformation procedure
+
+# define power transformation function
+
+pow_trans <- function(Lambda_In, ydata) {
+# function to perform eqn 5.1 in e-book
+
+n <- length(ydata)
+#y_dot <- exp(sum(log(ydata))/n)
+y_dot <- geometric.mean(ydata)
+
+
+  if(Lambda_In == 0){
+    y.lambda <- y_dot*log(ydata)
+  
+  } else {
+    numerator <- ydata^(Lambda_In) - 1
+    denominator <- Lambda_In*y_dot^(Lambda_In-1)
+    y.lambda <- numerator/denominator
+
+  }
+result <- y.lambda
+}
+
+lambdaList <- c(-2, -1, -0.5, 0, 0.125, .25, .375, .5, best.lambda, 0.625, .75, 1, 2)
+desired_length <- length(lambdaList)
+SS_Res_out <- rep(NA, desired_length) # initialize a list
+
+count <- 1
+for (val in lambdaList) {
+
+  ydata_trans <- pow_trans(val,Demand)
+  model <- lm(ydata_trans ~ Usage)
+  SS_Res_out[count] <- anova(model)$'Sum Sq'[2]
+  count = count+1
+}
+
+List1 <- data.frame(lambdaList)
+List2 <- data.frame(SS_Res_out)
+out <- as.data.frame(c(List1,List2))
+colnames(out) <- c("Lambda","$SS_{Res}$(Lambda)")
+tab <- (xtable(out, digits=c(0, 3, 4)))
+print(tab, type="html")
+
+```
+
+
+
+
+
+
+```
