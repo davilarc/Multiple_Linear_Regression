@@ -13,3 +13,4 @@ R code for multiple linear regression - example code
 ## Lesson 14 - Multicollinearity
 ## Lesson 15 - Model Selection
 ## Lesson 16 - Validation Techniques
+## Lesson 17 - Genrealized Linear Model
