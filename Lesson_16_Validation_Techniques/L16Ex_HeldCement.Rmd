@@ -1,0 +1,108 @@
+---
+title: "L16Ex_HeldCement"
+author: "Rick Davila"
+date: "6/09/2020"
+output:
+  md_document:
+    variant: markdown_github
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Sys.setenv(JAVA_HOME='C:\\Program Files\\Java\\jdk-14.0.1') # for 64-bit version
+#library(rJava)
+
+library("xlsx") # Needed to read data
+library(MuMIn)
+
+# Import data
+Lex16_1 <- read.xlsx("data-ex-10-1.xlsx", sheetIndex = 1, sheetName=NULL, rowIndex=NULL, startRow=NULL, endRow=NULL, colIndex= NULL, as.data.frame=TRUE, header=TRUE, colClasses=NA, keepFormulas=FALSE, encoding="unknown")
+
+# Give labels to data columns
+names(Lex16_1) <- c("y", "x1", "x2", "x3", "x4")
+attach(Lex16_1)
+
+# Output data to make sure it reads properly
+Lex16_1 
+
+# Output data dimensions
+dim(Lex16_1)
+
+### Example 11.1 (p. 375) ###
+# Reproduce Table 11.1 on p. 375
+
+# First, generate lm model using all possible regressions
+Lex16_1_lm <- lm(y~x1+x2+x3+x4, data=Lex16_1, na.action = "na.fail") # Linear model of raw data
+
+# Use dredge() function to automatically perform all regressors regression
+combinations <- dredge(Lex16_1_lm, extra = c(R_Sq = function(x) summary(x)$r.squared,R_Sq_Adj = function(x) summary(x)$adj.r.squared, MS_Res = function(x) summary(x)$sigma^2,Cp, MallowCp = function(x) summary(x)$sigma^2*df.residual(x)/summary(Lex16_1_lm)$sigma^2-dim(Lex16_1)[1]+2*length(x$coefficients)))
+print(combinations)
+
+```
+
+
+#### from the combinations, select the first to models
+
+
+```{r}
+# model 1
+model.1 <- lm(y ~ x1 + x2)
+summary(model.1)
+anova(model.1)
+
+# model 2
+model.2 <- lm(y ~ x1 + x2 + x4)
+summary(model.2)
+anova(model.2)
+
+
+```
+
+
+model 1 fitted equation
+$$\hat{y} = `r model.1$coefficients[1]` + (`r model.1$coefficients[2]`)x_1 + (`r model.1$coefficients[3]`)x_2$$ 
+
+model 2 fitted equation
+$$\hat{y} = `r model.2$coefficients[1]` + (`r model.2$coefficients[2]`)x_1 + (`r model.2$coefficients[3]`)x_2 + (`r model.2$coefficients[4]`)x_4$$
+
+
+## Example 11.1 (p. 375) ###
+#### Reproduce Table 11.1 on p. 375
+
+
+```{r results="asis"}
+
+library(e1071)
+library(xtable)
+
+# using x1,x2 and x4 data values, calculate respective model y_hats
+model.1.out <- model.1$coefficients[1] + 
+  model.1$coefficients[2] * x1  + 
+  model.1$coefficients[3] * x2 
+
+model.2.out <- model.2$coefficients[1] + 
+  model.2$coefficients[2] * x1 + 
+  model.2$coefficients[3] * x2 +
+  model.2$coefficients[4] * x4
+  
+table_models <- data.frame(cbind(y,x1,x2,x3,x4,model.1.out,model.2.out))
+
+out <- table_models
+colnames(out) <- c("$y$",
+                   "$x_1$",
+                   "$x_2$",
+                   "$x_3$",
+                   "$x_4$",
+                   "model 1",
+                   "model 2")
+
+tab <- (xtable(out, digits=c(0,1,0,0,0,0,3,3)))
+print(tab, type="html")
+
+```
+

@@ -1,0 +1,174 @@
+---
+title: "L16Ex_DeliveryTime"
+author: "Rick Davila"
+date: "6/09/2020"
+output:
+  md_document:
+    variant: markdown_github
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Example 11.2
+
+#### Perform data housekeeping - upload, name columns, display to make sure it reads properly, etc. 
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Sys.setenv(JAVA_HOME='C:\\Program Files\\Java\\jdk-14.0.1') # for 64-bit version
+#library(rJava)
+
+library("xlsx") # Needed to read data
+
+# Import data
+Lex16_2 <- read.xlsx("data-ex-11-2.xlsx", sheetIndex = 1, sheetName=NULL, rowIndex=NULL, startRow=NULL, endRow=NULL, colIndex= NULL, as.data.frame=TRUE, header=TRUE, colClasses=NA, keepFormulas=FALSE, encoding="unknown")
+
+# Give labels to data columns
+names(Lex16_2) <- c("Obs", "City", "time", "cases", "distance")
+attach(Lex16_2)
+
+# Output data to make sure it reads properly
+Lex16_2 
+
+# Output data dimensions
+dim(Lex16_2)
+
+### Example 11.2 (375-376) ###
+# Distinguish between original data and new data
+dfnew <- subset(Lex16_2, Obs > 25)
+dfold <- subset(Lex16_2, Obs <= 25)
+
+# Create model using original data
+model.old <- lm(dfold$time ~ dfold$cases + dfold$distance)
+
+summary(model.old)
+anova(model.old)
+
+# Predict values in new dataset using original model
+y_new_hat <- model.old$coefficients[1] +
+  model.old$coefficients[2]*dfnew$cases +
+  model.old$coefficients[3]*dfnew$distance
+
+the_diff <- dfnew$time - y_new_hat
+
+```
+
+
+## Reproduce Table 11.2 on p. 376
+
+
+```{r results="asis"}
+library(e1071)
+library(xtable)
+
+table_11pt2 <- data.frame(dfnew$Obs,
+                                 dfnew$City,
+                                 dfnew$cases,
+                                 dfnew$distance,
+                                 dfnew$time,
+                                 y_new_hat,
+                                 the_diff)
+                                 
+out <- table_11pt2
+colnames(out) <- c("Observation",
+                   "City",
+                   "Cases, $x_1$",
+                   "Distance, $x_2$",
+                   "Observed Time, $y$",
+                   "Least Squares Fit, $\\hat{y}$",
+                   "Least Squares Fit, $y-\\hat{y}$")
+
+tab <- (xtable(out,digits=c(0,0,NA,0,0,2,4,4)))
+print(tab, type="html")
+
+```
+
+## Example 11.3
+## Reproduce Table 11.6 on p. 385
+
+
+```{r results="asis"}
+### Example 11.3 (p. 380-385) ###
+# Import new data, defining which data points are in Estimation set and which are in Prediction set
+
+# Import data
+Lex16_3 <- read.xlsx("data-ex-11-3.xlsx", sheetIndex = 1, sheetName=NULL, rowIndex=NULL, startRow=NULL, endRow=NULL, colIndex= NULL, as.data.frame=TRUE, header=TRUE, colClasses=NA, keepFormulas=FALSE, encoding="unknown")
+
+
+# Give labels to data columns
+names(Lex16_3) <- c("Obs", "City", "time", "cases", "distance","EorP")
+attach(Lex16_3)
+
+# Output data to make sure it reads properly
+the_data <- data.frame(Lex16_3$Obs,
+                       Lex16_3$City,
+                       Lex16_3$time,
+                       Lex16_3$cases,
+                       Lex16_3$distance,
+                       Lex16_3$EorP)
+                                 
+out <- the_data
+colnames(out) <- c("Observation, $i$",
+                   "City",
+                   "Delivery TIme, $y$",
+                   "Cases, $x_1$",
+                   "Distance, $x_2$",
+                   "Estimation (E) or Prediction (P) Data Set")
+
+tab <- (xtable(out,digits=c(0,0,NA,2,0,0,NA)))
+print(tab, type="html")
+
+# Split data into Estimation and Prediction sets
+# Distinguish between original data and new data
+
+dfP <- subset(Lex16_3, EorP != "E")
+dfE <- subset(Lex16_3, EorP != "P")
+
+
+# list datafiles "P" and "E"
+dfP
+dfE
+
+# Create model using estimation set and compare to model using full set. Compare to Table 11.5 on p. 384
+
+# model using estimation data
+model.dfE <- lm(dfE$time ~ dfE$cases + dfE$distance)
+
+# analysis using estimation data
+xtable(summary(model.dfE))
+xtable(anova(model.dfE))
+
+# model using all data
+model.Lex16_3 <- lm(Lex16_3$time ~ Lex16_3$cases + Lex16_3$distance)
+
+# analysis using all data
+xtable(summary(model.Lex16_3))
+xtable(anova(model.Lex16_3))
+
+# Reproduce Table 11.6 on p. 385
+
+# y predicted -- using predicted values in model created from the estimated values
+y_hat <- model.dfE$coefficients[1] +
+  model.dfE$coefficients[2]*dfP$cases +
+  model.dfE$coefficients[3]*dfP$distance 
+
+# predict error
+predict_error <- dfP$time - y_hat
+
+table_11pt3 <- data.frame(dfP$Obs,
+                          dfP$time,
+                          y_hat,
+                          predict_error)
+                                 
+out <- table_11pt3
+colnames(out) <- c("Observation, $i$",
+                   "Observed, $y_i$",
+                   "LSF Predicted, $\\hat{y}_i$",
+                   "LSF Prediction Error, $e_i = y_i-\\hat{y}_i$")
+
+tab <- (xtable(out,digits=c(0,0,2,4,4)))
+print(tab, type="html")
+
+```
+
