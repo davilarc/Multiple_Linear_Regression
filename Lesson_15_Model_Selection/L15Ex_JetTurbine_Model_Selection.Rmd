@@ -3,6 +3,7 @@ title: "L15Ex_JetTurbine_Rick_Davila"
 author: "Rick Davila"
 date: "6/05/2020"
 output:
+  pdf_document: default
   md_document:
     variant: markdown_github
   html_document:
