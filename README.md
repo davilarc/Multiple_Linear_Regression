@@ -11,3 +11,4 @@ R code for multiple linear regression - example code
 ## Lesson 12 - Polynomials
 ## Lesson 13 - Indicator Variables
 ## Lesson 14 - Multicollinearity
+## Lesson 15 - Model Selection
